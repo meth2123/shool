@@ -1,0 +1,53 @@
+{
+    "name": "schoolmanager/schoolmanager",
+    "description": "Système de Gestion Scolaire",
+    "type": "project",
+    "require": {
+        "php": ">=7.4",
+        "ext-mysqli": "*",
+        "ext-json": "*",
+        "ext-curl": "*",
+        "ext-mbstring": "*",
+        "ext-openssl": "*",
+        "ext-pdo": "*",
+        "ext-gd": "*",
+        "phpmailer/phpmailer": "^6.8"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5",
+        "squizlabs/php_codesniffer": "^3.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "SchoolManager\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "SchoolManager\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "mkdir -p logs",
+            "chmod 755 logs",
+            "mkdir -p uploads",
+            "chmod 755 uploads"
+        ],
+        "post-deploy": [
+            "php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+            "chmod -R 755 uploads",
+            "chmod -R 755 logs"
+        ],
+        "test": "phpunit",
+        "check-style": "phpcs",
+        "fix-style": "phpcbf"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+} 

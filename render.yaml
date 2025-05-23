@@ -1,0 +1,64 @@
+services:
+  # Service Web PHP
+  - type: web
+    name: schoolmanager
+    env: php
+    region: oregon # Région la plus proche du Sénégal
+    plan: starter # Plan de base, peut être mis à niveau plus tard
+    buildCommand: |
+      composer install --no-dev --optimize-autoloader
+      php artisan key:generate
+    startCommand: vendor/bin/heroku-php-apache2
+    envVars:
+      - key: APP_URL
+        value: https://schoolmanager.sn
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: PAYDUNYA_MASTER_KEY
+        sync: false
+      - key: PAYDUNYA_PUBLIC_KEY
+        sync: false
+      - key: PAYDUNYA_PRIVATE_KEY
+        sync: false
+      - key: PAYDUNYA_TOKEN
+        sync: false
+      - key: DB_HOST
+        fromDatabase:
+          name: schoolmanager-db
+          property: host
+      - key: DB_NAME
+        fromDatabase:
+          name: schoolmanager-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: schoolmanager-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: schoolmanager-db
+          property: password
+    healthCheckPath: /health.php
+    autoDeploy: true
+
+  # Base de données MySQL
+  - type: mysql
+    name: schoolmanager-db
+    plan: starter
+    region: oregon
+    ipAllowList: []
+    disk:
+      name: mysql-data
+      mountPath: /var/lib/mysql
+      sizeGB: 1
+    envVars:
+      - key: MYSQL_ROOT_PASSWORD
+        generateValue: true
+      - key: MYSQL_DATABASE
+        value: schoolmanager
+      - key: MYSQL_USER
+        generateValue: true
+      - key: MYSQL_PASSWORD
+        generateValue: true 
