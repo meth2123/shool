@@ -1,0 +1,47 @@
+2025-05-25 03:19:05 - Script démarré
+2025-05-25 03:19:05 - Fichiers inclus
+2025-05-25 03:19:05 - Paramètres: admin_id=ad-123-1, class_id=CLS-CI-A-218, period=1
+2025-05-25 03:19:05 - Classe trouvée: CI
+2025-05-25 03:19:05 - Nombre d'étudiants trouvés: 2
+2025-05-25 03:19:05 - Dossier des bulletins: C:\wamp64\www/gestion/bulletins/CLS-CI-A-218/1
+2025-05-25 03:19:05 - Permissions du dossier modifiées
+2025-05-25 03:19:05 - Chemin du fichier ZIP: C:\wamp64\www/gestion/bulletins/CLS-CI-A-218/1/bulletins_CI_1.zip
+2025-05-25 03:19:05 - Objet ZipArchive créé
+2025-05-25 03:19:05 - Archive ZIP ouverte avec succès
+2025-05-25 03:19:06 - Fichier test ajouté à l'archive
+2025-05-25 03:19:06 - Traitement de l'étudiant: bellas (st001)
+2025-05-25 03:19:06 - Fichier texte créé: C:\wamp64\www/gestion/bulletins/CLS-CI-A-218/1/bulletin_st001_1.txt
+2025-05-25 03:19:06 - Fichier texte ajouté à l'archive
+2025-05-25 03:19:06 - Génération du bulletin pour l'étudiant st001
+2025-05-25 03:19:06 - Informations de l'étudiant récupérées
+2025-05-25 03:19:06 - Informations du parent récupérées
+2025-05-25 03:19:06 - Notes récupérées: 0
+2025-05-25 03:19:06 - Aucune note trouvée, création d'un bulletin vide
+2025-05-25 03:19:06 - Bulletin vide créé avec succès
+2025-05-25 03:19:06 - Bulletin PDF créé: C:\wamp64\www/gestion/bulletins/CLS-CI-A-218/1/bulletin_st001_1.pdf
+2025-05-25 03:19:06 - Bulletin PDF ajouté à l'archive
+2025-05-25 03:19:06 - Traitement de l'étudiant: methdiaye (st200)
+2025-05-25 03:19:06 - Fichier texte créé: C:\wamp64\www/gestion/bulletins/CLS-CI-A-218/1/bulletin_st200_1.txt
+2025-05-25 03:19:06 - Fichier texte ajouté à l'archive
+2025-05-25 03:19:06 - Génération du bulletin pour l'étudiant st200
+2025-05-25 03:19:06 - Informations de l'étudiant récupérées
+2025-05-25 03:19:06 - Informations du parent récupérées
+2025-05-25 03:19:06 - Notes récupérées: 9
+2025-05-25 03:19:06 - Moyennes calculées
+2025-05-25 03:19:06 - Instance PDF créée
+2025-05-25 03:19:06 - Page PDF ajoutée
+2025-05-25 03:19:06 - Contenu du PDF généré
+2025-05-25 03:19:06 - Fichier texte créé: C:\wamp64\www/gestion/bulletins/CLS-CI-A-218/1/bulletin_st200_1.txt
+2025-05-25 03:19:06 - PDF généré: C:\wamp64\www/gestion/bulletins/CLS-CI-A-218/1/bulletin_st200_1.pdf
+2025-05-25 03:19:06 - Bulletin PDF créé: C:\wamp64\www/gestion/bulletins/CLS-CI-A-218/1/bulletin_st200_1.pdf
+2025-05-25 03:19:06 - Bulletin PDF ajouté à l'archive
+2025-05-25 03:19:06 - Archive ZIP fermée avec succès
+2025-05-25 03:19:06 - Taille du fichier ZIP: 4117 octets
+2025-05-25 03:19:06 - En-têtes HTTP envoyés
+2025-05-25 03:19:06 - Lecture du fichier: succès (4117 octets)
+2025-05-25 03:19:06 - Fichier temporaire supprimé: C:\wamp64\www/gestion/bulletins/CLS-CI-A-218/1/bulletin_st001_1.pdf
+2025-05-25 03:19:06 - Fichier texte temporaire supprimé: C:\wamp64\www/gestion/bulletins/CLS-CI-A-218/1/bulletin_st001_1.txt
+2025-05-25 03:19:06 - Fichier temporaire supprimé: C:\wamp64\www/gestion/bulletins/CLS-CI-A-218/1/bulletin_st200_1.pdf
+2025-05-25 03:19:06 - Fichier texte temporaire supprimé: C:\wamp64\www/gestion/bulletins/CLS-CI-A-218/1/bulletin_st200_1.txt
+2025-05-25 03:19:06 - Fichier test supprimé
+2025-05-25 03:19:06 - Script terminé avec succès

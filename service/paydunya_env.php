@@ -10,6 +10,11 @@ $public_key = getenv('PAYDUNYA_PUBLIC_KEY') ?: 'live_public_sSLcfppVXgj8EPvJejPa
 $private_key = getenv('PAYDUNYA_PRIVATE_KEY') ?: 'live_private_c79m7kcs9viYYMKyDXTHPwLfjk0';
 $token = getenv('PAYDUNYA_TOKEN') ?: 'DIjlzayBLdsFdtqYXZ2v';
 
+// Définir les URLs de callback
+$callback_url = $base_url . '/module/subscription/callback.php';
+$cancel_url = $base_url . '/module/subscription/cancel.php';
+$return_url = $base_url . '/module/subscription/success.php';
+
 return [
     'mode' => 'live', // Mode production
     'store' => [
@@ -18,7 +23,10 @@ return [
         'postal_address' => 'Dakar, Sénégal',
         'phone_number' => '+221 77 123 45 67',
         'website_url' => $base_url,
-        'logo_url' => $base_url . '/source/logo.jpg'
+        'logo_url' => $base_url . '/source/logo.jpg',
+        'callback_url' => $callback_url,
+        'cancel_url' => $cancel_url,
+        'return_url' => $return_url
     ],
     'api_keys' => [
         'master_key' => $master_key,
@@ -38,22 +46,10 @@ return [
     ]
 ];
 
-// Fonction pour obtenir les URLs de callback
-function getPayDunyaUrls() {
-    global $base_url;
-    
-    return [
-        'website_url' => $base_url,
-        'callback_url' => $base_url . '/module/subscription/callback.php',
-        'cancel_url' => $base_url . '/module/subscription/cancel.php',
-        'return_url' => $base_url . '/module/subscription/success.php'
-    ];
-}
-
 // Log de la configuration
 error_log("Configuration PayDunya chargée - Mode: Production");
 error_log("Base URL: " . $base_url);
-error_log("Callback URL: " . $base_url . "/module/subscription/callback.php");
+error_log("Callback URL: " . $callback_url);
 
 // Vérification de la sécurité
 if (strpos($base_url, 'https://') !== 0) {

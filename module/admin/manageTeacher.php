@@ -6,8 +6,8 @@ include_once('includes/admin_utils.php');
 $admin_id = $_SESSION['login_id'];
 
 // Gestion des messages de succès/erreur
-$success_message = isset($_GET['success']) ? '<div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-4">' . htmlspecialchars($_GET['success']) . '</div>' : '';
-$error_message = isset($_GET['error']) ? '<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">' . htmlspecialchars($_GET['error']) . '</div>' : '';
+$success_message = isset($_GET['success']) ? '<div class="alert alert-success mb-4">' . htmlspecialchars($_GET['success']) . '</div>' : '';
+$error_message = isset($_GET['error']) ? '<div class="alert alert-danger mb-4">' . htmlspecialchars($_GET['error']) . '</div>' : '';
 
 // Par défaut, on filtre par l'admin connecté
 $where_clause = ' WHERE t.created_by = ?';
@@ -26,69 +26,169 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 $content = '
-<div class="container mx-auto px-4 py-8">
+<div class="container py-4">
     ' . $success_message . $error_message . '
     
-    <div class="flex justify-between items-center mb-6">
-        <h2 class="text-2xl font-bold text-gray-900">Gestion des Enseignants</h2>
-        <a href="addTeacher.php" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-            Ajouter un Enseignant
-        </a>
-    </div>
-
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Téléphone</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Genre</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date d\'embauche</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salaire</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">';
+    <div class="mb-4">
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div class="p-4 bg-white d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                <h4 class="card-title mb-0 fs-4">Gestion des Enseignants</h4>
+                <a href="addTeacher.php" class="btn btn-primary d-flex align-items-center justify-content-center gap-2">
+                    <i class="fas fa-plus-circle"></i><span>Ajouter un Enseignant</span>
+                </a>
+            </div>
+            
+            <!-- Vue mobile (cartes) -->
+            <div class="d-md-none">
+                <div class="list-group list-group-flush">';
 
             if ($result->num_rows > 0) {
+                // Pour la vue mobile (cartes)
+                $mobile_content = '';
+                // Pour la vue desktop (tableau)
+                $desktop_content = '';
+                
                 while ($row = $result->fetch_assoc()) {
                     $gender_badge = $row['sex'] == 'female' ? 
-                        '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-pink-100 text-pink-800">F</span>' :
-                        '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">M</span>';
+                        '<span class="badge bg-pink rounded-pill">F</span>' :
+                        '<span class="badge bg-primary rounded-pill">M</span>';
                     
-                    $content .= '
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">' . htmlspecialchars($row['id']) . '</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . htmlspecialchars($row['name']) . '</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">' . htmlspecialchars($row['email']) . '</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">' . htmlspecialchars($row['phone']) . '</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">' . $gender_badge . '</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">' . htmlspecialchars($row['hiredate'] ?? 'N/A') . '</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">' . htmlspecialchars($row['salary'] ?? 'N/A') . '</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                            <a href="updateTeacher.php?id=' . htmlspecialchars($row['id']) . '" 
-                               class="text-blue-600 hover:text-blue-900">Modifier</a>
+                    // Vue mobile (carte)
+                    $mobile_content .= '
+                    <div class="list-group-item p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="mb-0 fw-semibold">' . htmlspecialchars($row['name']) . '</h5>
+                            ' . $gender_badge . '
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex align-items-center mb-1">
+                                <i class="fas fa-id-card text-muted me-2"></i>
+                                <span class="text-muted small">ID:</span>
+                                <span class="ms-2">' . htmlspecialchars($row['id']) . '</span>
+                            </div>
+                            <div class="d-flex align-items-center mb-1">
+                                <i class="fas fa-envelope text-muted me-2"></i>
+                                <span>' . htmlspecialchars($row['email']) . '</span>
+                            </div>
+                            <div class="d-flex align-items-center mb-1">
+                                <i class="fas fa-phone text-muted me-2"></i>
+                                <span>' . htmlspecialchars($row['phone']) . '</span>
+                            </div>
+                            <div class="d-flex align-items-center mb-1">
+                                <i class="fas fa-calendar-alt text-muted me-2"></i>
+                                <span class="text-muted small">Embauché le:</span>
+                                <span class="ms-2">' . htmlspecialchars($row['hiredate'] ?? 'N/A') . '</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-money-bill-wave text-muted me-2"></i>
+                                <span class="text-muted small">Salaire:</span>
+                                <span class="ms-2 fw-semibold">' . htmlspecialchars($row['salary'] ?? 'N/A') . ' €</span>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 justify-content-end">
                             <a href="viewTeacher.php?id=' . htmlspecialchars($row['id']) . '" 
-                               class="text-green-600 hover:text-green-900">Voir</a>
+                               class="btn btn-sm btn-outline-success" title="Voir">
+                               <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="updateTeacher.php?id=' . htmlspecialchars($row['id']) . '" 
+                               class="btn btn-sm btn-outline-primary" title="Modifier">
+                               <i class="fas fa-edit"></i>
+                            </a>
                             <button onclick="confirmDelete(\'' . htmlspecialchars($row['id']) . '\')" 
-                                    class="text-red-600 hover:text-red-900">Supprimer</button>
+                                    class="btn btn-sm btn-outline-danger" title="Supprimer">
+                                    <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    </div>';
+                    
+                    // Vue desktop (tableau)
+                    $desktop_content .= '
+                    <tr>
+                        <td>' . htmlspecialchars($row['id']) . '</td>
+                        <td>' . htmlspecialchars($row['name']) . '</td>
+                        <td>' . htmlspecialchars($row['email']) . '</td>
+                        <td>' . htmlspecialchars($row['phone']) . '</td>
+                        <td>' . $gender_badge . '</td>
+                        <td>' . htmlspecialchars($row['hiredate'] ?? 'N/A') . '</td>
+                        <td>' . htmlspecialchars($row['salary'] ?? 'N/A') . ' €</td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <a href="updateTeacher.php?id=' . htmlspecialchars($row['id']) . '" 
+                                   class="btn btn-outline-primary" title="Modifier">
+                                   <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="viewTeacher.php?id=' . htmlspecialchars($row['id']) . '" 
+                                   class="btn btn-outline-success" title="Voir">
+                                   <i class="fas fa-eye"></i>
+                                </a>
+                                <button onclick="confirmDelete(\'' . htmlspecialchars($row['id']) . '\')" 
+                                        class="btn btn-sm btn-outline-danger" title="Supprimer">
+                                        <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>';
+                    }
+                    
+                    $content .= $mobile_content;
+                } else {
+                    $content .= '
+                    <div class="list-group-item p-4 text-center">
+                        <div class="py-5">
+                            <i class="fas fa-user-slash fa-3x text-muted mb-3"></i>
+                            <p>Aucun enseignant trouvé.</p>
+                            <a href="addTeacher.php" class="btn btn-primary mt-2">
+                                <i class="fas fa-plus-circle me-2"></i>Ajouter un enseignant
+                            </a>
+                        </div>
+                    </div>';
                 }
-            } else {
-                $content .= '
-                <tr>
-                    <td colspan="8" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                        Aucun enseignant trouvé. <a href="addTeacher.php" class="text-blue-600 hover:text-blue-900">Ajouter un enseignant</a>
-                    </td>
-                </tr>';
-            }
-
+                
 $content .= '
-            </tbody>
-        </table>
+                </div>
+            </div>
+            
+            <!-- Vue desktop (tableau) -->
+            <div class="d-none d-md-block">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Nom</th>
+                                <th>Email</th>
+                                <th>Téléphone</th>
+                                <th>Genre</th>
+                                <th>Date d\'embauche</th>
+                                <th>Salaire</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>';
+                        
+                        if ($result->num_rows > 0) {
+                            $content .= $desktop_content;
+                        } else {
+                            $content .= '
+                            <tr>
+                                <td colspan="8" class="text-center p-4">
+                                    <div class="py-5">
+                                        <i class="fas fa-user-slash fa-3x text-muted mb-3"></i>
+                                        <p>Aucun enseignant trouvé.</p>
+                                        <a href="addTeacher.php" class="btn btn-primary mt-2">
+                                            <i class="fas fa-plus-circle me-2"></i>Ajouter un enseignant
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>';
+                        }
+                        
+$content .= '
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

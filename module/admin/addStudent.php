@@ -50,106 +50,113 @@ createTableIfNotExists($link);
 addCreatedByColumnIfNotExists($link, 'students');
 
 $content = <<<CONTENT
-<div class="container mx-auto px-4 py-8">
-    <div class="max-w-3xl mx-auto">
-        <div class="bg-white rounded-lg shadow-lg p-6">
-            <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">Inscription d'un Nouvel Étudiant</h2>
-            
-            <form action="#" method="post" onsubmit="return validateStudentForm();" enctype="multipart/form-data" class="space-y-6">
-                <input type="hidden" name="created_by" value="{$check}">
-                
-                <!-- ID et Nom -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label for="stuId" class="block text-sm font-medium text-gray-700">ID Étudiant*</label>
-                        <input id="stuId" type="text" name="studentId" placeholder="Entrer l'ID" required
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <p id="stuIdError" class="mt-1 text-sm text-red-600 hidden"></p>
-                    </div>
-                    <div>
-                        <label for="stuName" class="block text-sm font-medium text-gray-700">Nom Complet*</label>
-                        <input id="stuName" type="text" name="studentName" placeholder="Entrer le nom" required
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <p id="stuNameError" class="mt-1 text-sm text-red-600 hidden"></p>
-                    </div>
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10 col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h4 class="card-title text-center mb-0">Inscription d'un Nouvel Étudiant</h4>
                 </div>
-
-                <!-- Mot de passe et Téléphone -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label for="stuPassword" class="block text-sm font-medium text-gray-700">Mot de passe*</label>
-                        <input id="stuPassword" type="password" name="studentPassword" placeholder="Entrer le mot de passe" required
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <p id="stuPasswordError" class="mt-1 text-sm text-red-600 hidden"></p>
-                    </div>
-                    <div>
-                        <label for="stuPhone" class="block text-sm font-medium text-gray-700">Téléphone*</label>
-                        <input id="stuPhone" type="tel" name="studentPhone" placeholder="Entrer le numéro" required
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <p id="stuPhoneError" class="mt-1 text-sm text-red-600 hidden"></p>
-                    </div>
-                </div>
-
-                <!-- Email et Genre -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label for="stuEmail" class="block text-sm font-medium text-gray-700">Email*</label>
-                        <input id="stuEmail" type="email" name="studentEmail" placeholder="Entrer l'email" required
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <p id="stuEmailError" class="mt-1 text-sm text-red-600 hidden"></p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Genre*</label>
-                        <div class="mt-2 space-x-4">
-                            <label class="inline-flex items-center">
-                                <input type="radio" name="gender" value="Male" required class="form-radio text-blue-600">
-                                <span class="ml-2">Masculin</span>
-                            </label>
-                            <label class="inline-flex items-center">
-                                <input type="radio" name="gender" value="Female" class="form-radio text-blue-600">
-                                <span class="ml-2">Féminin</span>
-                            </label>
+                <div class="card-body">
+                    <form action="#" method="post" onsubmit="return validateStudentForm();" enctype="multipart/form-data">
+                        <input type="hidden" name="created_by" value="{$check}">
+                        
+                        <!-- ID et Nom -->
+                        <div class="row mb-3">
+                            <div class="col-md-6 mb-3 mb-md-0">
+                                <label for="stuId" class="form-label">ID Étudiant*</label>
+                                <input id="stuId" type="text" name="studentId" placeholder="Entrer l'ID" required
+                                       class="form-control">
+                                <div id="stuIdError" class="invalid-feedback d-none"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="stuName" class="form-label">Nom Complet*</label>
+                                <input id="stuName" type="text" name="studentName" placeholder="Entrer le nom" required
+                                       class="form-control">
+                                <div id="stuNameError" class="invalid-feedback d-none"></div>
+                            </div>
                         </div>
-                        <p id="genderError" class="mt-1 text-sm text-red-600 hidden"></p>
-                    </div>
-                </div>
 
-                <!-- Date de naissance et Date d'admission -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label for="stuDOB" class="block text-sm font-medium text-gray-700">Date de naissance*</label>
-                        <input id="stuDOB" type="date" name="studentDOB" required
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <p id="stuDOBError" class="mt-1 text-sm text-red-600 hidden"></p>
-                    </div>
-                    <div>
-                        <label for="stuAddmissionDate" class="block text-sm font-medium text-gray-700">Date d'admission</label>
-                        <input id="stuAddmissionDate" type="date" name="studentAddmissionDate" value="<?php echo date('Y-m-d'); ?>" readonly 
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-50">
-                    </div>
-                </div>
+                        <!-- Mot de passe et Téléphone -->
+                        <div class="row mb-3">
+                            <div class="col-md-6 mb-3 mb-md-0">
+                                <label for="stuPassword" class="form-label">Mot de passe*</label>
+                                <input id="stuPassword" type="password" name="studentPassword" placeholder="Entrer le mot de passe" required
+                                       class="form-control">
+                                <div id="stuPasswordError" class="invalid-feedback d-none"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="stuPhone" class="form-label">Téléphone*</label>
+                                <input id="stuPhone" type="tel" name="studentPhone" placeholder="Entrer le numéro" required
+                                       class="form-control">
+                                <div id="stuPhoneError" class="invalid-feedback d-none"></div>
+                            </div>
+                        </div>
 
-                <!-- Adresse -->
-                <div>
-                    <label for="stuAddress" class="block text-sm font-medium text-gray-700">Adresse*</label>
-                    <textarea id="stuAddress" name="studentAddress" rows="3" placeholder="Entrer l'adresse" required
-                              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea>
-                    <p id="stuAddressError" class="mt-1 text-sm text-red-600 hidden"></p>
-                </div>
+                        <!-- Email et Genre -->
+                        <div class="row mb-3">
+                            <div class="col-md-6 mb-3 mb-md-0">
+                                <label for="stuEmail" class="form-label">Email*</label>
+                                <input id="stuEmail" type="email" name="studentEmail" placeholder="Entrer l'email" required
+                                       class="form-control">
+                                <div id="stuEmailError" class="invalid-feedback d-none"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Genre*</label>
+                                <div class="d-flex gap-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="gender" id="genderMale" value="Male">
+                                        <label class="form-check-label" for="genderMale">
+                                            Masculin
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="gender" id="genderFemale" value="Female">
+                                        <label class="form-check-label" for="genderFemale">
+                                            Féminin
+                                        </label>
+                                    </div>
+                                </div>
+                                <div id="genderError" class="invalid-feedback d-none"></div>
+                            </div>
+                        </div>
 
-                <!-- ID Parent et Classe -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label for="stuParentId" class="block text-sm font-medium text-gray-700">ID Parent*</label>
-                        <input id="stuParentId" type="text" name="studentParentId" placeholder="Entrer l'ID du parent" required
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <p id="stuParentIdError" class="mt-1 text-sm text-red-600 hidden"></p>
-                    </div>
-                    <div>
-                        <label for="stuClassId" class="block text-sm font-medium text-gray-700">Classe*</label>
-                        <select id="stuClassId" name="studentClassId" required
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <option value="">Sélectionner une classe</option>
+                        <!-- Date de naissance et Date d'admission -->
+                        <div class="row mb-3">
+                            <div class="col-md-6 mb-3 mb-md-0">
+                                <label for="stuDOB" class="form-label">Date de naissance*</label>
+                                <input id="stuDOB" type="date" name="studentDOB" required
+                                       class="form-control">
+                                <div id="stuDOBError" class="invalid-feedback d-none"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="stuAddmissionDate" class="form-label">Date d'admission</label>
+                                <input id="stuAddmissionDate" type="date" name="studentAddmissionDate" value="<?php echo date('Y-m-d'); ?>" readonly 
+                                       class="form-control bg-light">
+                            </div>
+                        </div>
+                        <!-- Adresse -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <label for="stuAddress" class="form-label">Adresse*</label>
+                                <textarea id="stuAddress" name="studentAddress" rows="3" placeholder="Entrer l'adresse" required
+                                          class="form-control"></textarea>
+                                <div id="stuAddressError" class="invalid-feedback d-none"></div>
+                            </div>
+                        </div>
+
+                        <!-- ID Parent et Classe -->
+                        <div class="row mb-3">
+                            <div class="col-md-6 mb-3 mb-md-0">
+                                <label for="stuParentId" class="form-label">ID Parent*</label>
+                                <input id="stuParentId" type="text" name="studentParentId" placeholder="Entrer l'ID du parent" required
+                                       class="form-control">
+                                <div id="stuParentIdError" class="invalid-feedback d-none"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="stuClassId" class="form-label">Classe*</label>
+                                <select id="stuClassId" name="studentClassId" required class="form-select">
+                                    <option value="">Sélectionner une classe</option>
 CONTENT;
 
 foreach($classes as $class) {
@@ -161,120 +168,155 @@ CONTENT;
 }
 
 $content .= <<<CONTENT
-                        </select>
-                        <p id="stuClassIdError" class="mt-1 text-sm text-red-600 hidden"></p>
-                    </div>
+                                </select>
+                                <div id="stuClassIdError" class="invalid-feedback d-none"></div>
+                            </div>
+                        </div>
+
+                        <!-- Photo -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <label for="file" class="form-label">Photo de l'étudiant</label>
+                                <input id="file" type="file" name="file" accept="image/*" class="form-control">
+                                <div id="fileError" class="invalid-feedback d-none"></div>
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="row">
+                            <div class="col-12 d-flex justify-content-end">
+                                <button type="submit" name="submit" value="1" class="btn btn-primary">
+                                    <i class="fas fa-user-plus me-2"></i>Inscrire l'étudiant
+                                </button>
+                            </div>
+                        </div>
+                    </form>
                 </div>
+            </div>
 
-                <!-- Photo -->
-                <div>
-                    <label for="file" class="block text-sm font-medium text-gray-700">Photo de l'étudiant</label>
-                    <input id="file" type="file" name="file" accept="image/*" 
-                           class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                    <p id="fileError" class="mt-1 text-sm text-red-600 hidden"></p>
-				</div>
-
-                <!-- Submit Button -->
-                <div class="flex justify-end">
-                    <button type="submit" name="submit" value="1" 
-                            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                        Inscrire l'étudiant
-                    </button>
-						</div>
-            </form>
+            <!-- Message de succès ou d'erreur -->
+            <div id="message" class="mt-4"></div>
         </div>
-
-        <!-- Message de succès ou d'erreur -->
-        <div id="message" class="mt-4"></div>
     </div>
-</div>
 
 <script>
 function validateStudentForm() {
     let isValid = true;
     const errors = {};
+    
+    // Réinitialiser tous les messages d'erreur
+    document.querySelectorAll('.invalid-feedback').forEach(el => {
+        el.classList.add('d-none');
+        el.textContent = '';
+    });
+    
+    document.querySelectorAll('.form-control, .form-select, .form-check-input').forEach(el => {
+        el.classList.remove('is-invalid');
+    });
 
     // Validate Student ID
     const stuId = document.getElementById('stuId').value;
     if (!stuId || !/^[A-Za-z0-9]+$/.test(stuId)) {
-        errors.stuId = "L'ID étudiant est requis et ne doit contenir que des lettres et des chiffres";
+        showError('stuId', "L'ID étudiant est requis et ne doit contenir que des lettres et des chiffres");
         isValid = false;
     }
 
     // Validate Name
     const stuName = document.getElementById('stuName').value;
     if (!stuName || stuName.length < 2) {
-        errors.stuName = "Le nom doit contenir au moins 2 caractères";
+        showError('stuName', "Le nom doit contenir au moins 2 caractères");
         isValid = false;
     }
 
     // Validate Password
     const stuPassword = document.getElementById('stuPassword').value;
     if (!stuPassword || stuPassword.length < 6) {
-        errors.stuPassword = "Le mot de passe doit contenir au moins 6 caractères";
+        showError('stuPassword', "Le mot de passe doit contenir au moins 6 caractères");
         isValid = false;
     }
 
     // Validate Phone
     const stuPhone = document.getElementById('stuPhone').value;
-    if (!stuPhone) {
-        errors.stuPhone = "Le numéro de téléphone est requis";
+    if (!stuPhone || !/^[0-9+\-\s]+$/.test(stuPhone)) {
+        showError('stuPhone', "Le numéro de téléphone est requis et doit être valide");
         isValid = false;
     }
 
     // Validate Email
     const stuEmail = document.getElementById('stuEmail').value;
     if (!stuEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(stuEmail)) {
-        errors.stuEmail = "Veuillez entrer une adresse email valide";
+        showError('stuEmail', "L'email est requis et doit être valide");
         isValid = false;
     }
 
     // Validate Gender
     const gender = document.querySelector('input[name="gender"]:checked');
     if (!gender) {
-        errors.gender = "Veuillez sélectionner un genre";
+        document.getElementById('genderError').textContent = "Veuillez sélectionner un genre";
+        document.getElementById('genderError').classList.remove('d-none');
+        document.querySelectorAll('input[name="gender"]').forEach(el => {
+            el.classList.add('is-invalid');
+        });
         isValid = false;
     }
-
+    
     // Validate DOB
     const stuDOB = document.getElementById('stuDOB').value;
     if (!stuDOB) {
-        errors.stuDOB = "La date de naissance est requise";
+        showError('stuDOB', "La date de naissance est requise");
         isValid = false;
     }
-
+    
     // Validate Address
     const stuAddress = document.getElementById('stuAddress').value;
     if (!stuAddress || stuAddress.length < 5) {
-        errors.stuAddress = "L'adresse doit contenir au moins 5 caractères";
+        showError('stuAddress', "L'adresse est requise et doit contenir au moins 5 caractères");
         isValid = false;
     }
-
+    
     // Validate Parent ID
     const stuParentId = document.getElementById('stuParentId').value;
     if (!stuParentId) {
-        errors.stuParentId = "L'ID du parent est requis";
+        showError('stuParentId', "L'ID du parent est requis");
         isValid = false;
     }
-
+    
     // Validate Class
     const stuClassId = document.getElementById('stuClassId').value;
     if (!stuClassId) {
-        errors.stuClassId = "Veuillez sélectionner une classe";
+        showError('stuClassId', "Veuillez sélectionner une classe");
         isValid = false;
     }
+    
+    return isValid;
+}
 
-    // Display errors if any
+// Fonction pour afficher les erreurs
+function showError(fieldId, message) {
+    const field = document.getElementById(fieldId);
+    const errorElement = document.getElementById(fieldId + 'Error');
+    
+    if (field && errorElement) {
+        field.classList.add('is-invalid');
+        errorElement.textContent = message;
+        errorElement.classList.remove('d-none');
+    }
+}
+
+// Cette fonction n'est plus nécessaire car nous utilisons showError directement
+// Gardée pour référence en cas de besoin futur
+/*
+function displayErrors(errors) {
     Object.keys(errors).forEach(field => {
         const errorElement = document.getElementById(field + 'Error');
         if (errorElement) {
             errorElement.textContent = errors[field];
-            errorElement.classList.remove('hidden');
+            errorElement.classList.remove('d-none');
+            document.getElementById(field).classList.add('is-invalid');
         }
     });
-
-    return isValid;
 }
+*/
 </script>
 CONTENT;
 

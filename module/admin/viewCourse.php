@@ -25,48 +25,58 @@ if (!$course) {
 }
 
 $content = '
-<div class="container mx-auto px-4 py-8">
-    <div class="max-w-4xl mx-auto">
-        <div class="mb-6 flex justify-between items-center">
-            <h2 class="text-2xl font-bold text-gray-900">Détails du Cours</h2>
-            <a href="course.php" class="text-blue-600 hover:text-blue-800">
-                <i class="fas fa-arrow-left mr-2"></i>Retour à la liste
-            </a>
-        </div>
-
-        <div class="bg-white shadow-lg rounded-lg overflow-hidden">
-            <!-- Informations du cours -->
-            <div class="p-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <p class="text-sm font-medium text-gray-500">ID du cours</p>
-                        <p class="mt-1 text-sm text-gray-900">' . htmlspecialchars($course['id']) . '</p>
-                    </div>
-                    <div>
-                        <p class="text-sm font-medium text-gray-500">Nom du cours</p>
-                        <p class="mt-1 text-sm text-gray-900">' . htmlspecialchars($course['name']) . '</p>
-                    </div>
-                    <div>
-                        <p class="text-sm font-medium text-gray-500">Enseignant</p>
-                        <p class="mt-1 text-sm text-gray-900">' . htmlspecialchars($course['teacher_name'] ?? 'Non assigné') . '</p>
-                    </div>
-                    <div>
-                        <p class="text-sm font-medium text-gray-500">Classe</p>
-                        <p class="mt-1 text-sm text-gray-900">' . htmlspecialchars($course['class_name'] ?? 'Non assignée') . '</p>
-                    </div>
-                </div>
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-8">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">Détails du Cours</h2>
+                <a href="course.php" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-2"></i>Retour à la liste
+                </a>
             </div>
 
-            <!-- Boutons d\'action -->
-            <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3">
-                <a href="updateCourse.php?id=' . htmlspecialchars($course_id) . '" 
-                   class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                    Modifier le cours
-                </a>
-                <button onclick="confirmDelete(\'' . htmlspecialchars($course_id) . '\')"
-                        class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
-                    Supprimer le cours
-                </button>
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="card-title mb-0">Informations du cours</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">ID du cours</label>
+                                <p class="mb-0">' . htmlspecialchars($course['id']) . '</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">Nom du cours</label>
+                                <p class="mb-0">' . htmlspecialchars($course['name']) . '</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">Enseignant</label>
+                                <p class="mb-0">' . htmlspecialchars($course['teacher_name'] ?? 'Non assigné') . '</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">Classe</label>
+                                <p class="mb-0">' . htmlspecialchars($course['class_name'] ?? 'Non assignée') . '</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-white d-flex justify-content-end gap-2">
+                    <a href="updateCourse.php?id=' . htmlspecialchars($course_id) . '" 
+                       class="btn btn-primary">
+                       <i class="fas fa-edit me-2"></i>Modifier le cours
+                    </a>
+                    <button onclick="confirmDelete(\'' . htmlspecialchars($course_id) . '\')" 
+                            class="btn btn-danger">
+                        <i class="fas fa-trash-alt me-2"></i>Supprimer le cours
+                    </button>
+                </div>
             </div>
         </div>
     </div>

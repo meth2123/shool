@@ -110,4 +110,4 @@ function getClassesByAdmin($link, $admin_id) {
 function countClassesByAdmin($link, $admin_id) {
     return countDataByAdmin($link, 'class', $admin_id);
 }
-?> 
+?>

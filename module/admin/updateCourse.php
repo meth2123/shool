@@ -85,32 +85,39 @@ $classes_sql = "SELECT id, name FROM class ORDER BY name";
 $classes_result = $link->query($classes_sql);
 
 $content = '
-<div class="container mx-auto px-4 py-8">
-    <div class="max-w-4xl mx-auto">
-        <div class="mb-6 flex justify-between items-center">
-            <h2 class="text-2xl font-bold text-gray-900">Modifier le Cours</h2>
-            <a href="viewCourse.php?id=' . htmlspecialchars($course_id) . '" class="text-blue-600 hover:text-blue-800">
-                <i class="fas fa-arrow-left mr-2"></i>Retour aux détails
-            </a>
-        </div>
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-8">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">Modifier le Cours</h2>
+                <a href="viewCourse.php?id=' . htmlspecialchars($course_id) . '" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-2"></i>Retour aux détails
+                </a>
+            </div>
 
-        ' . (isset($error) ? '<div class="mb-4 p-4 text-red-700 bg-red-100 rounded-md">' . htmlspecialchars($error) . '</div>' : '') . '
+            ' . (isset($error) ? '<div class="alert alert-danger mb-4">' . htmlspecialchars($error) . '</div>' : '') . '
 
-        <div class="bg-white shadow-lg rounded-lg overflow-hidden">
-            <form method="POST" class="p-6">
-                <div class="space-y-6">
-                    <div>
-                        <label for="name" class="block text-sm font-medium text-gray-700">Nom du cours</label>
-                        <input type="text" name="name" id="name" required
-                               value="' . htmlspecialchars($course['name']) . '"
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="card-title mb-0">Informations du cours</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="mb-3">
+                                    <label for="name" class="form-label">Nom du cours</label>
+                                    <input type="text" name="name" id="name" required
+                                           value="' . htmlspecialchars($course['name']) . '"
+                                           class="form-control">
+                                </div>
+                            </div>
 
-                    <div>
-                        <label for="teacher_id" class="block text-sm font-medium text-gray-700">Enseignant</label>
-                        <select name="teacher_id" id="teacher_id"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <option value="">Sélectionner un enseignant</option>';
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="teacher_id" class="form-label">Enseignant</label>
+                                    <select name="teacher_id" id="teacher_id" class="form-select">
+                                        <option value="">Sélectionner un enseignant</option>';
 
                             while ($teacher = $teachers_result->fetch_assoc()) {
                                 $selected = ($teacher['id'] == $course['teacherid']) ? 'selected' : '';
@@ -119,14 +126,15 @@ $content = '
                             }
 
 $content .= '
-                        </select>
-                    </div>
+                                    </select>
+                                </div>
+                            </div>
 
-                    <div>
-                        <label for="class_id" class="block text-sm font-medium text-gray-700">Classe</label>
-                        <select name="class_id" id="class_id"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <option value="">Sélectionner une classe</option>';
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="class_id" class="form-label">Classe</label>
+                                    <select name="class_id" id="class_id" class="form-select">
+                                        <option value="">Sélectionner une classe</option>';
 
                             while ($class = $classes_result->fetch_assoc()) {
                                 $selected = ($class['id'] == $course['classid']) ? 'selected' : '';
@@ -135,20 +143,22 @@ $content .= '
                             }
 
 $content .= '
-                        </select>
-                    </div>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-end mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Enregistrer les modifications
+                            </button>
+                        </div>
+                    </form>
                 </div>
-
-                <div class="mt-6 flex justify-end">
-                    <button type="submit"
-                            class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                        Enregistrer les modifications
-                    </button>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>';
 
 include('templates/layout.php');
-?> 
+?>

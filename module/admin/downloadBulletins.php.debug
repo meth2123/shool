@@ -1,0 +1,509 @@
+<?php
+// Démarrer la mise en tampon de sortie dès le début du script
+ob_start();
+
+// Activer l'affichage des erreurs pour le débogage
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+// Journal de débogage
+$debug_log = [];
+function debug_log($message) {
+    global $debug_log;
+    $debug_log[] = date('Y-m-d H:i:s') . " - " . $message;
+}
+
+debug_log("Script démarré");
+
+include_once('main.php');
+include_once('../../service/db_utils.php');
+require_once('../../vendor/autoload.php'); // TCPDF est installé via Composer
+
+debug_log("Fichiers inclus");
+
+// Vérification des droits d'administrateur
+if (!isset($check) || !isset($login_session)) {
+    debug_log("Accès non autorisé");
+    header("Location: ../../index.php?error=unauthorized");
+    exit();
+}
+
+$admin_id = $_SESSION['login_id'];
+$class_id = isset($_GET['class']) ? $_GET['class'] : '';
+$period = isset($_GET['period']) ? $_GET['period'] : '';
+
+debug_log("Paramètres: admin_id=$admin_id, class_id=$class_id, period=$period");
+
+// Validation des paramètres
+if (empty($class_id) || empty($period)) {
+    debug_log("Paramètres manquants");
+    die("Paramètres manquants. Veuillez spécifier une classe et une période.");
+}
+
+// Vérifier que l'admin a accès à cette classe
+$class = db_fetch_row(
+    "SELECT * FROM class WHERE id = ? AND created_by = ?",
+    [$class_id, $admin_id],
+    'ss'
+);
+
+if (!$class) {
+    debug_log("Accès non autorisé à cette classe");
+    die("Accès non autorisé à cette classe.");
+}
+
+debug_log("Classe trouvée: " . (isset($class['name']) ? $class['name'] : $class_id));
+
+// Récupérer les étudiants de la classe
+$students = db_fetch_all(
+    "SELECT id, name FROM students WHERE classid = ? AND created_by = ? ORDER BY name",
+    [$class_id, $admin_id],
+    'ss'
+);
+
+if (empty($students)) {
+    debug_log("Aucun étudiant trouvé");
+    die("Aucun étudiant trouvé dans cette classe.");
+}
+
+debug_log("Nombre d'étudiants trouvés: " . count($students));
+
+// Chemin absolu du dossier contenant les bulletins
+$root_path = realpath($_SERVER['DOCUMENT_ROOT']);
+$bulletins_dir = $root_path . "/gestion/bulletins/{$class_id}/{$period}";
+debug_log("Dossier des bulletins: $bulletins_dir");
+
+// Vérifier si le dossier existe
+if (!is_dir($bulletins_dir)) {
+    debug_log("Création du dossier: $bulletins_dir");
+    // Créer le dossier s'il n'existe pas
+    if (!mkdir($bulletins_dir, 0777, true)) {
+        debug_log("Impossible de créer le dossier");
+        die("Impossible de créer le dossier pour les bulletins. Vérifiez les permissions.");
+    }
+}
+
+// S'assurer que le dossier a les bonnes permissions
+chmod($bulletins_dir, 0777);
+debug_log("Permissions du dossier modifiées");
+
+// Nom du fichier ZIP (sans espaces ni caractères spéciaux)
+$class_name_safe = isset($class['name']) ? preg_replace('/[^a-zA-Z0-9_-]/', '_', $class['name']) : $class_id;
+$zip_filename = "bulletins_{$class_name_safe}_{$period}.zip";
+$zip_path = "{$bulletins_dir}/{$zip_filename}";
+debug_log("Chemin du fichier ZIP: $zip_path");
+
+// Vérifier si l'extension ZipArchive est disponible
+if (!class_exists('ZipArchive')) {
+    debug_log("Extension ZipArchive non disponible");
+    die("L'extension ZipArchive n'est pas disponible sur ce serveur.");
+}
+
+// Créer un nouvel objet ZipArchive
+$zip = new ZipArchive();
+debug_log("Objet ZipArchive créé");
+
+// Ouvrir l'archive ZIP
+$result = $zip->open($zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+if ($result !== TRUE) {
+    debug_log("Impossible de créer l'archive ZIP (code d'erreur: $result)");
+    die("Impossible de créer l'archive ZIP (code d'erreur: $result). Vérifiez les permissions du dossier.");
+}
+debug_log("Archive ZIP ouverte avec succès");
+
+// Compteur de bulletins ajoutés à l'archive
+$bulletins_count = 0;
+
+// Créer un fichier texte simple pour tester l'archive ZIP
+$test_file = "{$bulletins_dir}/test.txt";
+file_put_contents($test_file, "Ceci est un test pour vérifier que l'archive ZIP fonctionne correctement.");
+if ($zip->addFile($test_file, "test.txt")) {
+    $bulletins_count++;
+    debug_log("Fichier test ajouté à l'archive");
+} else {
+    debug_log("Impossible d'ajouter le fichier test à l'archive");
+}
+
+// Classe pour la génération des PDF
+class MYPDF extends TCPDF {
+    public function Header() {
+        $this->SetFont('helvetica', 'B', 20);
+        $this->Cell(0, 15, 'Bulletin Scolaire', 0, false, 'C', 0, '', 0, false, 'M', 'M');
+    }
+
+    public function Footer() {
+        $this->SetY(-15);
+        $this->SetFont('helvetica', 'I', 8);
+        $this->Cell(0, 10, 'Page '.$this->getAliasNumPage().'/'.$this->getAliasNbPages(), 0, false, 'C', 0, '', 0, false, 'T', 'M');
+    }
+}
+
+// Fonction pour générer un PDF de bulletin pour un étudiant
+function generateStudentBulletin($student_id, $class_id, $period, $output_path) {
+    global $admin_id, $debug_log;
+    debug_log("Génération du bulletin pour l'étudiant $student_id");
+    
+    // Récupération des informations de l'élève
+    $student = db_fetch_row(
+        "SELECT s.*, c.name as class_name
+         FROM students s
+         JOIN class c ON CAST(s.classid AS CHAR) = CAST(c.id AS CHAR)
+         WHERE s.id = ? AND s.created_by = ? AND c.id = ?",
+        [$student_id, $admin_id, $class_id],
+        'sss'
+    );
+
+    if (!$student) {
+        debug_log("Étudiant non trouvé");
+        return false;
+    }
+    debug_log("Informations de l'étudiant récupérées");
+
+    // Récupération des informations du parent
+    $parent = db_fetch_row(
+        "SELECT name as parent_name, phone as parent_phone
+         FROM parent
+         WHERE id = ?",
+        [$student['parentid']],
+        's'
+    );
+    debug_log("Informations du parent récupérées");
+
+    // Récupération des notes de l'élève avec les coefficients des matières
+    $grades = db_fetch_all(
+        "SELECT 
+            c.name as course_name,
+            c.coefficient as course_coefficient,
+            t.name as teacher_name,
+            stc.grade_type,
+            stc.grade_number,
+            stc.grade,
+            stc.coefficient as grade_coefficient
+         FROM student_teacher_course stc
+         JOIN course c ON stc.course_id = c.id
+         JOIN teachers t ON stc.teacher_id = t.id
+         WHERE stc.student_id = ?
+         AND stc.class_id = ?
+         AND stc.semester = ?
+         ORDER BY c.name, stc.grade_type, stc.grade_number",
+        [$student_id, $class_id, $period],
+        'sss'
+    );
+    debug_log("Notes récupérées: " . count($grades));
+
+    // Si aucune note n'est trouvée, créer un bulletin vide
+    if (empty($grades)) {
+        debug_log("Aucune note trouvée, création d'un bulletin vide");
+        // Création d'un fichier texte simple à la place d'un PDF
+        $content = "Bulletin de {$student['name']} - Aucune note disponible pour la période $period";
+        if (file_put_contents($output_path . ".txt", $content)) {
+            debug_log("Bulletin vide créé avec succès");
+            return true;
+        } else {
+            debug_log("Impossible de créer le bulletin vide");
+            return false;
+        }
+    }
+
+    // Calcul des moyennes par matière
+    $course_averages = [];
+    $total_weighted_average = 0;
+    $total_course_coefficients = 0;
+
+    foreach ($grades as $grade) {
+        $course = $grade['course_name'];
+        
+        if (!isset($course_averages[$course])) {
+            $course_averages[$course] = [
+                'course_coefficient' => $grade['course_coefficient'],
+                'grades' => [],
+                'total_points' => 0,
+                'total_coefficients' => 0,
+                'average' => 0
+            ];
+        }
+        
+        $course_averages[$course]['grades'][] = $grade;
+        $course_averages[$course]['total_points'] += $grade['grade'] * $grade['grade_coefficient'];
+        $course_averages[$course]['total_coefficients'] += $grade['grade_coefficient'];
+    }
+
+    // Calcul des moyennes finales par matière
+    foreach ($course_averages as $course => &$data) {
+        if ($data['total_coefficients'] > 0) {
+            $data['average'] = $data['total_points'] / $data['total_coefficients'];
+            $total_weighted_average += $data['average'] * $data['course_coefficient'];
+            $total_course_coefficients += $data['course_coefficient'];
+        }
+    }
+
+    $general_average = $total_course_coefficients > 0 ? $total_weighted_average / $total_course_coefficients : 0;
+    debug_log("Moyennes calculées");
+
+    try {
+        // Création d'une nouvelle instance de PDF
+        $pdf = new MYPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+        debug_log("Instance PDF créée");
+
+        // Configuration du document
+        $pdf->SetCreator(PDF_CREATOR);
+        $pdf->SetAuthor('Système de Gestion Scolaire');
+        $pdf->SetTitle('Bulletin - ' . $student['name']);
+
+        // Configuration des marges
+        $pdf->SetMargins(15, 40, 15);
+        $pdf->SetHeaderMargin(20);
+        $pdf->SetFooterMargin(10);
+
+        // Ajout d'une page
+        $pdf->AddPage();
+        debug_log("Page PDF ajoutée");
+
+        // En-tête du bulletin
+        $pdf->SetFont('helvetica', 'B', 16);
+        $pdf->Cell(0, 10, 'Année scolaire ' . date('Y') . '-' . (date('Y') + 1), 0, 1, 'C');
+        $pdf->Cell(0, 10, ($period == '1' ? '1er' : ($period == '2' ? '2ème' : '3ème')) . ' Trimestre', 0, 1, 'C');
+        $pdf->Ln(10);
+
+        // Informations de l'élève
+        $pdf->SetFont('helvetica', 'B', 12);
+        $pdf->Cell(0, 10, 'Informations de l\'élève', 0, 1, 'L');
+        $pdf->SetFont('helvetica', '', 10);
+        $pdf->Cell(40, 7, 'Nom :', 0, 0);
+        $pdf->Cell(0, 7, $student['name'], 0, 1);
+        $pdf->Cell(40, 7, 'Classe :', 0, 0);
+        $pdf->Cell(0, 7, $student['class_name'], 0, 1);
+        $pdf->Cell(40, 7, 'Date de naissance :', 0, 0);
+        $pdf->Cell(0, 7, isset($student['dob']) ? $student['dob'] : 'Non disponible', 0, 1);
+        $pdf->Ln(5);
+
+        // Informations du parent
+        $pdf->SetFont('helvetica', 'B', 12);
+        $pdf->Cell(0, 10, 'Informations du parent', 0, 1, 'L');
+        $pdf->SetFont('helvetica', '', 10);
+        if ($parent) {
+            $pdf->Cell(40, 7, 'Nom :', 0, 0);
+            $pdf->Cell(0, 7, $parent['parent_name'], 0, 1);
+            $pdf->Cell(40, 7, 'Téléphone :', 0, 0);
+            $pdf->Cell(0, 7, $parent['parent_phone'], 0, 1);
+        } else {
+            $pdf->Cell(0, 7, 'Les informations du parent ne sont pas disponibles.', 0, 1);
+        }
+        $pdf->Ln(10);
+
+        // Tableau des notes
+        $pdf->SetFont('helvetica', 'B', 12);
+        $pdf->Cell(0, 10, 'Notes', 0, 1, 'L');
+
+        // En-tête du tableau
+        $pdf->SetFont('helvetica', 'B', 10);
+        $header = array('Matière', 'Enseignant', 'Devoir 1', 'Devoir 2', 'Examen', 'Moyenne');
+        $w = array(50, 40, 25, 25, 25, 25);
+
+        // Couleurs, ligne et police
+        $pdf->SetFillColor(240, 240, 240);
+        $pdf->SetTextColor(0);
+        $pdf->SetDrawColor(0, 0, 0);
+        $pdf->SetLineWidth(0.1);
+        $pdf->SetFont('helvetica', 'B', 9);
+
+        // En-tête
+        for($i = 0; $i < count($header); $i++) {
+            $pdf->Cell($w[$i], 7, $header[$i], 1, 0, 'C', true);
+        }
+        $pdf->Ln();
+
+        // Données
+        $pdf->SetFont('helvetica', '', 9);
+        $pdf->SetFillColor(255, 255, 255);
+
+        foreach ($course_averages as $course => $data) {
+            $devoir1 = '';
+            $devoir2 = '';
+            $examen = '';
+            
+            foreach ($data['grades'] as $grade) {
+                if ($grade['grade_type'] === 'devoir') {
+                    if ($grade['grade_number'] == 1) {
+                        $devoir1 = isset($grade['grade']) ? number_format($grade['grade'], 2) . '/20' : '-';
+                    } else {
+                        $devoir2 = isset($grade['grade']) ? number_format($grade['grade'], 2) . '/20' : '-';
+                    }
+                } else {
+                    $examen = isset($grade['grade']) ? number_format($grade['grade'], 2) . '/20' : '-';
+                }
+            }
+
+            $pdf->Cell($w[0], 6, $course . ' (coef ' . $data['course_coefficient'] . ')', 1, 0, 'L');
+            $pdf->Cell($w[1], 6, isset($data['grades'][0]['teacher_name']) ? $data['grades'][0]['teacher_name'] : '-', 1, 0, 'L');
+            $pdf->Cell($w[2], 6, $devoir1, 1, 0, 'C');
+            $pdf->Cell($w[3], 6, $devoir2, 1, 0, 'C');
+            $pdf->Cell($w[4], 6, $examen, 1, 0, 'C');
+            $pdf->Cell($w[5], 6, isset($data['average']) ? number_format($data['average'], 2) . '/20' : '-', 1, 0, 'C');
+            $pdf->Ln();
+        }
+
+        // Moyenne générale
+        $pdf->SetFont('helvetica', 'B', 10);
+        $pdf->Cell(array_sum($w) - $w[5], 7, 'Moyenne générale :', 1, 0, 'R');
+        $pdf->Cell($w[5], 7, isset($general_average) ? number_format($general_average, 2) . '/20' : '-', 1, 1, 'C');
+
+        debug_log("Contenu du PDF généré");
+
+        // Tester avec un fichier texte simple
+        $text_output_path = str_replace('.pdf', '.txt', $output_path);
+        file_put_contents($text_output_path, "Bulletin de test pour {$student['name']}");
+        debug_log("Fichier texte créé: $text_output_path");
+
+        // Sauvegarder le PDF dans le fichier spécifié
+        $pdf_result = $pdf->Output($output_path, 'F');
+        debug_log("PDF généré: $output_path");
+        return true;
+    } catch (Exception $e) {
+        debug_log("Erreur lors de la génération du PDF: " . $e->getMessage());
+        // Créer un fichier texte à la place
+        $content = "Bulletin de {$student['name']} - Erreur de génération du PDF: " . $e->getMessage();
+        file_put_contents($output_path . ".txt", $content);
+        debug_log("Fichier texte créé à la place du PDF");
+        return false;
+    }
+}
+
+// Générer les bulletins pour chaque étudiant et les ajouter à l'archive ZIP
+foreach ($students as $student) {
+    debug_log("Traitement de l'étudiant: {$student['name']} ({$student['id']})");
+    
+    // Essayer d'abord avec un fichier texte simple
+    $txt_filename = "bulletin_{$student['id']}_{$period}.txt";
+    $txt_path = "{$bulletins_dir}/{$txt_filename}";
+    
+    $txt_content = "Bulletin de test pour l'étudiant {$student['name']} de la classe {$class_id} pour la période {$period}";
+    file_put_contents($txt_path, $txt_content);
+    
+    if (file_exists($txt_path)) {
+        debug_log("Fichier texte créé: $txt_path");
+        if ($zip->addFile($txt_path, $txt_filename)) {
+            $bulletins_count++;
+            debug_log("Fichier texte ajouté à l'archive");
+        } else {
+            debug_log("Impossible d'ajouter le fichier texte à l'archive");
+        }
+    }
+    
+    // Essayer ensuite avec le PDF
+    $bulletin_filename = "bulletin_{$student['id']}_{$period}.pdf";
+    $bulletin_path = "{$bulletins_dir}/{$bulletin_filename}";
+    
+    // Générer le PDF du bulletin
+    $result = generateStudentBulletin($student['id'], $class_id, $period, $bulletin_path);
+    
+    // Vérifier que le fichier a bien été créé
+    if ($result && file_exists($bulletin_path)) {
+        debug_log("Bulletin PDF créé: $bulletin_path");
+        // Ajouter le fichier à l'archive
+        if ($zip->addFile($bulletin_path, $bulletin_filename)) {
+            $bulletins_count++;
+            debug_log("Bulletin PDF ajouté à l'archive");
+        } else {
+            debug_log("Impossible d'ajouter le bulletin PDF à l'archive");
+        }
+    } else {
+        debug_log("Échec de la création du bulletin PDF");
+    }
+}
+
+// Fermer l'archive ZIP
+$zip_close_result = $zip->close();
+if (!$zip_close_result) {
+    debug_log("Erreur lors de la fermeture de l'archive ZIP");
+    die("Erreur lors de la fermeture de l'archive ZIP.");
+}
+debug_log("Archive ZIP fermée avec succès");
+
+// Vérifier si des bulletins ont été ajoutés et si le fichier ZIP existe
+if ($bulletins_count === 0 || !file_exists($zip_path)) {
+    debug_log("Aucun bulletin ajouté ou archive non créée");
+    
+    // Afficher le journal de débogage
+    echo "<h1>Journal de débogage</h1>";
+    echo "<pre>";
+    foreach ($debug_log as $log) {
+        echo htmlspecialchars($log) . "\n";
+    }
+    echo "</pre>";
+    
+    die("Aucun bulletin n'a pu être ajouté à l'archive ou l'archive n'a pas pu être créée.");
+}
+
+// Vérifier la taille du fichier
+$filesize = filesize($zip_path);
+if ($filesize === false || $filesize === 0) {
+    debug_log("Fichier ZIP vide ou inaccessible");
+    
+    // Afficher le journal de débogage
+    echo "<h1>Journal de débogage</h1>";
+    echo "<pre>";
+    foreach ($debug_log as $log) {
+        echo htmlspecialchars($log) . "\n";
+    }
+    echo "</pre>";
+    
+    die("Le fichier ZIP est vide ou inaccessible.");
+}
+debug_log("Taille du fichier ZIP: $filesize octets");
+
+// Nettoyer tout le contenu mis en tampon
+if (ob_get_level()) {
+    ob_end_clean();
+}
+
+// Désactiver la mise en cache
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+
+// Télécharger le fichier ZIP
+header('Content-Description: File Transfer');
+header('Content-Type: application/zip');
+header('Content-Disposition: attachment; filename="' . $zip_filename . '"');
+header('Content-Length: ' . $filesize);
+header('Content-Transfer-Encoding: binary');
+header('Expires: 0');
+
+debug_log("En-têtes HTTP envoyés");
+
+// Lire et envoyer le fichier
+$read_result = readfile($zip_path);
+debug_log("Lecture du fichier: " . ($read_result !== false ? "succès ($read_result octets)" : "échec"));
+
+// Supprimer les fichiers temporaires
+foreach ($students as $student) {
+    $bulletin_filename = "bulletin_{$student['id']}_{$period}.pdf";
+    $bulletin_path = "{$bulletins_dir}/{$bulletin_filename}";
+    if (file_exists($bulletin_path)) {
+        unlink($bulletin_path);
+        debug_log("Fichier temporaire supprimé: $bulletin_path");
+    }
+    
+    $txt_filename = "bulletin_{$student['id']}_{$period}.txt";
+    $txt_path = "{$bulletins_dir}/{$txt_filename}";
+    if (file_exists($txt_path)) {
+        unlink($txt_path);
+        debug_log("Fichier texte temporaire supprimé: $txt_path");
+    }
+}
+
+// Supprimer le fichier test
+if (file_exists($test_file)) {
+    unlink($test_file);
+    debug_log("Fichier test supprimé");
+}
+
+debug_log("Script terminé avec succès");
+
+// Écrire le journal de débogage dans un fichier
+file_put_contents("{$bulletins_dir}/debug_log.txt", implode("\n", $debug_log));
+
+exit();
+?>

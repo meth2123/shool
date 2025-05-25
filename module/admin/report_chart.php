@@ -1,0 +1,561 @@
+<?php
+include_once('main.php');
+include_once('../../service/mysqlcon.php');
+include_once('../../service/db_utils.php');
+
+// Vérifier que l'utilisateur est bien un administrateur
+if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'admin') {
+    header("Location: ../../index.php?error=unauthorized");
+    exit();
+}
+
+$admin_id = $_SESSION['login_id'];
+
+// Récupérer les informations de l'administrateur
+$admin_info_sql = "SELECT name, email FROM admin WHERE id = ?";
+$admin_stmt = $link->prepare($admin_info_sql);
+$admin_stmt->bind_param("s", $admin_id);
+$admin_stmt->execute();
+$admin_result = $admin_stmt->get_result();
+$admin_info = $admin_result->fetch_assoc();
+
+// Filtres pour les rapports
+$grade_filter = isset($_GET['grade_filter']) ? intval($_GET['grade_filter']) : 12;
+$class_filter = isset($_GET['class_filter']) && $_GET['class_filter'] !== '' ? $_GET['class_filter'] : null;
+
+// Récupérer les classes disponibles pour le filtre
+$classes = db_fetch_all(
+    "SELECT * FROM class WHERE created_by = ? ORDER BY name",
+    [$admin_id],
+    's'
+);
+
+// Récupérer les données pour le graphique - Moyenne par matière
+$chart_data_sql = "SELECT 
+    c.name as course_name,
+    AVG(stc.grade) as avg_grade,
+    COUNT(DISTINCT stc.student_id) as student_count
+FROM student_teacher_course stc
+JOIN course c ON CAST(stc.course_id AS CHAR) = CAST(c.id AS CHAR)
+JOIN teachers t ON CAST(stc.teacher_id AS CHAR) = CAST(t.id AS CHAR)
+WHERE t.created_by = ?";
+
+if ($class_filter !== null) {
+    $chart_data_sql .= " AND CAST(stc.class_id AS CHAR) = ?";
+}
+
+$chart_data_sql .= " GROUP BY c.id ORDER BY avg_grade ASC";
+
+// Préparer les paramètres pour la requête du graphique
+$chart_params = [$admin_id];
+$chart_types = 's';
+
+if ($class_filter !== null) {
+    $chart_params[] = $class_filter;
+    $chart_types .= 's';
+}
+
+// Exécuter la requête pour le graphique
+$chart_stmt = $link->prepare($chart_data_sql);
+
+if ($chart_stmt) {
+    $chart_stmt->bind_param($chart_types, ...$chart_params);
+    $chart_stmt->execute();
+    $chart_result = $chart_stmt->get_result();
+    $chart_data = $chart_result->fetch_all(MYSQLI_ASSOC);
+} else {
+    $chart_data = [];
+}
+
+// Préparer les données pour le graphique
+$course_labels = [];
+$avg_grades = [];
+$student_counts = [];
+$chart_colors = [];
+
+// Palette de couleurs pour le graphique
+$color_palette = [
+    'rgba(255, 99, 132, 0.7)',
+    'rgba(54, 162, 235, 0.7)',
+    'rgba(255, 206, 86, 0.7)',
+    'rgba(75, 192, 192, 0.7)',
+    'rgba(153, 102, 255, 0.7)',
+    'rgba(255, 159, 64, 0.7)',
+    'rgba(199, 199, 199, 0.7)',
+    'rgba(83, 102, 255, 0.7)',
+    'rgba(40, 159, 64, 0.7)',
+    'rgba(210, 199, 199, 0.7)',
+];
+
+foreach ($chart_data as $index => $row) {
+    $course_labels[] = $row['course_name'];
+    $avg_grades[] = round($row['avg_grade'], 2);
+    $student_counts[] = $row['student_count'];
+    $chart_colors[] = $color_palette[$index % count($color_palette)];
+}
+
+// Requête pour les enseignants avec des élèves ayant des notes inférieures au seuil
+$sql = "SELECT 
+    t.id as teacher_id,
+    t.name as teacher,
+    c.id as course_id,
+    c.name as course,
+    cl.name as class_name,
+    COUNT(DISTINCT stc.student_id) as no_of_std,
+    MIN(CASE WHEN stc.grade IS NOT NULL THEN stc.grade ELSE NULL END) as min_grade,
+    MAX(CASE WHEN stc.grade IS NOT NULL THEN stc.grade ELSE NULL END) as max_grade,
+    AVG(CASE WHEN stc.grade IS NOT NULL THEN stc.grade ELSE NULL END) as avg_grade
+FROM teachers t
+JOIN student_teacher_course stc ON CAST(t.id AS CHAR) = CAST(stc.teacher_id AS CHAR)
+JOIN course c ON CAST(stc.course_id AS CHAR) = CAST(c.id AS CHAR)
+JOIN class cl ON CAST(stc.class_id AS CHAR) = CAST(cl.id AS CHAR)
+WHERE t.created_by = ?";
+
+// Ajouter le filtre de note si nécessaire (seulement si inférieur à 20)
+if ($grade_filter < 20) {
+    $sql .= " AND (stc.grade <= ? OR stc.grade IS NULL)";
+}
+
+// Ajouter le filtre de classe si spécifié
+if ($class_filter !== null) {
+    $sql .= " AND CAST(stc.class_id AS CHAR) = ?";
+}
+
+$sql .= " GROUP BY c.id, t.id, cl.id ORDER BY no_of_std DESC, avg_grade ASC";
+
+// Préparer les paramètres en fonction des filtres appliqués
+$params = [$admin_id];
+$types = 's';
+
+if ($grade_filter < 20) {
+    $params[] = $grade_filter;
+    $types .= 'i';
+}
+
+if ($class_filter !== null) {
+    $params[] = $class_filter;
+    $types .= 's';
+}
+
+// Exécuter la requête
+$stmt = $link->prepare($sql);
+
+if ($stmt) {
+    // Utiliser bind_param avec un tableau de paramètres
+    if (!empty($params)) {
+        $stmt->bind_param($types, ...$params);
+    }
+    
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $teachers_data = $result->fetch_all(MYSQLI_ASSOC);
+    $num_rows = count($teachers_data);
+} else {
+    $teachers_data = [];
+    $num_rows = 0;
+}
+
+// Statistiques pour le tableau de bord
+$total_students_in_trouble = 0;
+$teachers_concerned = [];
+$courses_concerned = [];
+$class_distribution = [];
+
+foreach ($teachers_data as $row) {
+    $total_students_in_trouble += $row['no_of_std'];
+    $teachers_concerned[$row['teacher_id']] = $row['teacher'];
+    $courses_concerned[$row['course_id']] = $row['course'];
+    
+    if (!isset($class_distribution[$row['class_name']])) {
+        $class_distribution[$row['class_name']] = 0;
+    }
+    $class_distribution[$row['class_name']] += $row['no_of_std'];
+}
+
+// Récupérer les élèves en difficulté pour chaque classe
+$class_students = [];
+
+if ($class_filter !== null) {
+    $students_sql = "SELECT 
+        s.id, 
+        s.name, 
+        AVG(stc.grade) as avg_grade,
+        COUNT(DISTINCT stc.course_id) as courses_count,
+        COUNT(CASE WHEN stc.grade < ? THEN 1 ELSE NULL END) as low_grades_count
+    FROM students s
+    JOIN student_teacher_course stc ON CAST(s.id AS CHAR) = CAST(stc.student_id AS CHAR)
+    WHERE s.classid = ? AND s.created_by = ?
+    GROUP BY s.id
+    HAVING low_grades_count > 0
+    ORDER BY avg_grade ASC";
+    
+    $students_stmt = $link->prepare($students_sql);
+    $students_stmt->bind_param("iss", $grade_filter, $class_filter, $admin_id);
+    $students_stmt->execute();
+    $students_result = $students_stmt->get_result();
+    $class_students = $students_result->fetch_all(MYSQLI_ASSOC);
+}
+?>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapports Personnalisés - <?php echo htmlspecialchars($admin_info['name']); ?></title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .card-dashboard {
+            transition: transform 0.2s;
+        }
+        .card-dashboard:hover {
+            transform: translateY(-5px);
+        }
+        .debug-info {
+            font-size: 0.85rem;
+            background-color: #f8f9fa;
+            border-radius: 0.25rem;
+            padding: 1rem;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <!-- Header -->
+    <div class="bg-white shadow-sm">
+        <div class="container py-3">
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    <a href="index.php" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Retour
+                    </a>
+                </div>
+                <div class="col">
+                    <h1 class="h4 mb-0 text-center">Rapports de Performance</h1>
+                </div>
+                <div class="col-auto">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-primary dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-download me-2"></i>Exporter
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="exportDropdown">
+                            <li><a class="dropdown-item" href="#"><i class="far fa-file-pdf me-2"></i>PDF</a></li>
+                            <li><a class="dropdown-item" href="#"><i class="far fa-file-excel me-2"></i>Excel</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container py-4">
+        <!-- Filtres de rapport -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">Filtres de Rapport</h5>
+            </div>
+            <div class="card-body">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-6">
+                        <label for="grade_filter" class="form-label">Note minimale</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="grade_filter" name="grade_filter" min="0" max="20" step="1" value="<?php echo $grade_filter; ?>">
+                            <span class="input-group-text">/20</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="class_filter" class="form-label">Classe</label>
+                        <select class="form-select" id="class_filter" name="class_filter">
+                            <option value="">Toutes les classes</option>
+                            <?php foreach ($classes as $class): ?>
+                                <option value="<?php echo $class['id']; ?>" <?php echo $class_filter === $class['id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($class['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-filter me-2"></i>Appliquer les filtres
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Dashboard -->
+        <div class="row g-4 mb-4">
+            <div class="col-12 col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0 bg-primary bg-opacity-10 p-3 rounded">
+                                <i class="fas fa-user-graduate text-primary fa-2x"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="text-muted mb-1">Total des élèves en difficulté</h6>
+                                <h3 class="mb-0"><?php echo $total_students_in_trouble; ?></h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0 bg-success bg-opacity-10 p-3 rounded">
+                                <i class="fas fa-chalkboard-teacher text-success fa-2x"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="text-muted mb-1">Enseignants concernés</h6>
+                                <h3 class="mb-0"><?php echo count($teachers_concerned); ?></h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0 bg-info bg-opacity-10 p-3 rounded">
+                                <i class="fas fa-book text-info fa-2x"></i>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="text-muted mb-1">Cours concernés</h6>
+                                <h3 class="mb-0"><?php echo count($courses_concerned); ?></h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Graphique des moyennes par matière -->
+        <div class="card mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Moyennes par matière</h5>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-sm btn-outline-primary active" id="showBarChart">
+                        <i class="fas fa-chart-bar me-1"></i>Barres
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="showLineChart">
+                        <i class="fas fa-chart-line me-1"></i>Ligne
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <?php if (empty($chart_data)): ?>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>Aucune donnée disponible pour afficher le graphique.
+                    </div>
+                <?php else: ?>
+                    <div class="chart-container">
+                        <canvas id="gradesChart"></canvas>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Tableau des enseignants -->
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">Évaluation des Enseignants</h5>
+                <p class="card-text small text-muted mt-2">Liste des enseignants avec des élèves ayant des notes inférieures à <?php echo $grade_filter; ?>/20</p>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Enseignant</th>
+                                <th>Cours</th>
+                                <th>Classe</th>
+                                <th>Nombre d'Élèves</th>
+                                <th>Note Min</th>
+                                <th>Note Max</th>
+                                <th>Note Moyenne</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($teachers_data)): ?>
+                                <tr>
+                                    <td colspan="7" class="text-center py-4">
+                                        <div class="text-muted">
+                                            <i class="fas fa-info-circle me-2"></i>Aucune donnée disponible pour les critères sélectionnés
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($teachers_data as $row): ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($row['teacher']); ?></td>
+                                        <td><?php echo htmlspecialchars($row['course']); ?></td>
+                                        <td><?php echo htmlspecialchars($row['class_name']); ?></td>
+                                        <td>
+                                            <span class="badge bg-primary"><?php echo $row['no_of_std']; ?></span>
+                                        </td>
+                                        <td>
+                                            <?php if ($row['min_grade'] !== null): ?>
+                                                <span class="badge bg-danger"><?php echo number_format($row['min_grade'], 2); ?>/20</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-secondary">N/A</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($row['max_grade'] !== null): ?>
+                                                <span class="badge bg-success"><?php echo number_format($row['max_grade'], 2); ?>/20</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-secondary">N/A</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($row['avg_grade'] !== null): ?>
+                                                <span class="badge <?php echo $row['avg_grade'] < $grade_filter ? 'bg-warning' : 'bg-info'; ?>">
+                                                    <?php echo number_format($row['avg_grade'], 2); ?>/20
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="badge bg-secondary">N/A</span>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Charts JS -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script>
+        // Initialiser les graphiques
+        document.addEventListener('DOMContentLoaded', function() {
+            <?php if (!empty($chart_data)): ?>
+                // Données pour le graphique
+                const courseLabels = <?php echo json_encode($course_labels); ?>;
+                const avgGrades = <?php echo json_encode($avg_grades); ?>;
+                const studentCounts = <?php echo json_encode($student_counts); ?>;
+                const chartColors = <?php echo json_encode($chart_colors); ?>;
+                
+                // Référence au canvas
+                const ctx = document.getElementById('gradesChart');
+                
+                // Configuration du graphique
+                const chartConfig = {
+                    type: 'bar',
+                    data: {
+                        labels: courseLabels,
+                        datasets: [
+                            {
+                                label: 'Moyenne /20',
+                                data: avgGrades,
+                                backgroundColor: chartColors,
+                                borderColor: chartColors.map(color => color.replace('0.7', '1')),
+                                borderWidth: 1,
+                                yAxisID: 'y'
+                            },
+                            {
+                                label: 'Nombre d\'élèves',
+                                data: studentCounts,
+                                type: 'line',
+                                borderColor: 'rgba(75, 192, 192, 1)',
+                                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                borderWidth: 2,
+                                pointRadius: 4,
+                                fill: false,
+                                yAxisID: 'y1'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.datasetIndex === 0) {
+                                            label += context.raw + '/20';
+                                        } else {
+                                            label += context.raw + ' élèves';
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Moyenne /20'
+                                },
+                                min: 0,
+                                max: 20,
+                                ticks: {
+                                    stepSize: 2
+                                }
+                            },
+                            y1: {
+                                beginAtZero: true,
+                                position: 'right',
+                                title: {
+                                    display: true,
+                                    text: 'Nombre d\'élèves'
+                                },
+                                grid: {
+                                    drawOnChartArea: false
+                                }
+                            }
+                        }
+                    }
+                };
+                
+                // Créer le graphique
+                const myChart = new Chart(ctx, chartConfig);
+                
+                // Changer le type de graphique
+                document.getElementById('showBarChart').addEventListener('click', function() {
+                    myChart.config.data.datasets[0].type = 'bar';
+                    myChart.update();
+                    
+                    // Mettre à jour les classes des boutons
+                    document.getElementById('showBarChart').classList.add('active');
+                    document.getElementById('showLineChart').classList.remove('active');
+                });
+                
+                document.getElementById('showLineChart').addEventListener('click', function() {
+                    myChart.config.data.datasets[0].type = 'line';
+                    myChart.update();
+                    
+                    // Mettre à jour les classes des boutons
+                    document.getElementById('showBarChart').classList.remove('active');
+                    document.getElementById('showLineChart').classList.add('active');
+                });
+            <?php endif; ?>
+        });
+    </script>
+</body>
+</html>

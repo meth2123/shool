@@ -1,9 +1,9 @@
 <?php
 include_once('main.php');
-include_once('../../service/db_utils.php');
 
-// Récupérer les informations du staff
-$staff_info = db_fetch_row("SELECT name FROM staff WHERE id = ?", [$check], 'i');
+// Récupérer les informations du staff à partir de la variable $login_session définie dans main.php
+$staff_info = ['name' => $login_session];
+
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -14,7 +14,6 @@ $staff_info = db_fetch_row("SELECT name FROM staff WHERE id = ?", [$check], 'i')
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="staffAttendance.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <!-- Header -->
@@ -55,53 +54,23 @@ $staff_info = db_fetch_row("SELECT name FROM staff WHERE id = ?", [$check], 'i')
 
     <!-- Contenu principal -->
     <div class="max-w-7xl mx-auto px-4 py-8">
-        <!-- Section Présences -->
-        <div class="bg-white shadow-lg rounded-lg overflow-hidden mb-8">
+        <!-- Page Not Found -->
+        <div class="bg-white shadow-lg rounded-lg overflow-hidden mb-8 text-center py-16">
             <div class="p-6">
-                <h2 class="text-2xl font-bold text-gray-800 mb-6">Mes Présences</h2>
-                
-                <div class="bg-blue-50 p-4 rounded-lg mb-6">
-                    <div class="flex items-center justify-center space-x-4">
-                        <span class="text-blue-700 font-medium">Période :</span>
-                        <label class="inline-flex items-center">
-                            <input type="radio" class="form-radio text-blue-600" name="present" value="thismonth" checked
-                                   onclick="ajaxRequestToGetAttendancePresentThisMonth();">
-                            <span class="ml-2">Mois en cours</span>
-                        </label>
-                        <label class="inline-flex items-center">
-                            <input type="radio" class="form-radio text-blue-600" name="present" value="all"
-                                   onclick="ajaxRequestToGetAttendancePresentAll();">
-                            <span class="ml-2">Historique complet</span>
-                        </label>
-                    </div>
+                <div class="mb-8">
+                    <i class="fas fa-exclamation-triangle text-yellow-500 text-8xl"></i>
                 </div>
-
-                <div id="mypresent" class="overflow-hidden rounded-lg border border-gray-200"></div>
-            </div>
-        </div>
-
-        <!-- Section Absences -->
-        <div class="bg-white shadow-lg rounded-lg overflow-hidden">
-            <div class="p-6">
-                <h2 class="text-2xl font-bold text-gray-800 mb-6">Mes Absences</h2>
+                <h2 class="text-3xl font-bold text-gray-800 mb-4">Page Non Trouvée</h2>
+                <p class="text-xl text-gray-600 mb-8">Le module de gestion des présences est actuellement en cours de développement.</p>
                 
-                <div class="bg-red-50 p-4 rounded-lg mb-6">
-                    <div class="flex items-center justify-center space-x-4">
-                        <span class="text-red-700 font-medium">Période :</span>
-                        <label class="inline-flex items-center">
-                            <input type="radio" class="form-radio text-red-600" name="absent" value="thismonth" checked
-                                   onclick="ajaxRequestToGetAttendanceAbsentThisMonth();">
-                            <span class="ml-2">Mois en cours</span>
-                        </label>
-                        <label class="inline-flex items-center">
-                            <input type="radio" class="form-radio text-red-600" name="absent" value="all"
-                                   onclick="ajaxRequestToGetAttendanceAbsentAll();">
-                            <span class="ml-2">Historique complet</span>
-                        </label>
-                    </div>
+                <div class="bg-yellow-50 p-6 rounded-lg mb-8 max-w-2xl mx-auto">
+                    <h3 class="text-lg font-semibold text-yellow-700 mb-2">Information</h3>
+                    <p class="text-gray-700">D'après nos informations, cette fonctionnalité sera bientôt disponible. Nous travaillons activement pour l'implémenter dans les meilleurs délais.</p>
                 </div>
-
-                <div id="myabsent" class="overflow-hidden rounded-lg border border-gray-200"></div>
+                
+                <a href="index.php" class="inline-flex items-center bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-md text-lg font-medium transition duration-150 ease-in-out">
+                    <i class="fas fa-home mr-2"></i>Retour à l'accueil
+                </a>
             </div>
         </div>
     </div>
@@ -115,13 +84,7 @@ $staff_info = db_fetch_row("SELECT name FROM staff WHERE id = ?", [$check], 'i')
         </div>
     </footer>
 
-    <script>
-    // Charger les présences du mois en cours au chargement de la page
-    document.addEventListener('DOMContentLoaded', function() {
-        ajaxRequestToGetAttendancePresentThisMonth();
-        ajaxRequestToGetAttendanceAbsentThisMonth();
-    });
-    </script>
+    <!-- Aucun script JavaScript nécessaire pour cette page -->
 </body>
 </html>
 

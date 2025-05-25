@@ -1,0 +1,352 @@
+<?php
+// Démarrer la mise en tampon de sortie dès le début du script
+ob_start();
+
+include_once('main.php');
+include_once('../../service/db_utils.php');
+require_once('../../vendor/autoload.php'); // TCPDF est installé via Composer
+
+// Vérification des droits d'administrateur
+if (!isset($check) || !isset($login_session)) {
+    header("Location: ../../index.php?error=unauthorized");
+    exit();
+}
+
+$admin_id = $_SESSION['login_id'];
+$class_id = isset($_GET['class']) ? $_GET['class'] : '';
+$period = isset($_GET['period']) ? $_GET['period'] : '';
+
+// Validation des paramètres
+if (empty($class_id) || empty($period)) {
+    die("Paramètres manquants. Veuillez spécifier une classe et une période.");
+}
+
+// Vérifier que l'admin a accès à cette classe
+$class = db_fetch_row(
+    "SELECT * FROM class WHERE id = ? AND created_by = ?",
+    [$class_id, $admin_id],
+    'ss'
+);
+
+if (!$class) {
+    die("Accès non autorisé à cette classe.");
+}
+
+// Récupérer les étudiants de la classe
+$students = db_fetch_all(
+    "SELECT id, name FROM students WHERE classid = ? AND created_by = ? ORDER BY name",
+    [$class_id, $admin_id],
+    'ss'
+);
+
+if (empty($students)) {
+    die("Aucun étudiant trouvé dans cette classe.");
+}
+
+// Chemin absolu du dossier contenant les bulletins
+$root_path = realpath($_SERVER['DOCUMENT_ROOT'] . '/..');
+$bulletins_dir = $root_path . "/gestion/bulletins/{$class_id}/{$period}";
+
+// Vérifier si le dossier existe
+if (!is_dir($bulletins_dir)) {
+    // Créer le dossier s'il n'existe pas
+    if (!mkdir($bulletins_dir, 0777, true)) {
+        die("Impossible de créer le dossier pour les bulletins. Vérifiez les permissions.");
+    }
+}
+
+// S'assurer que le dossier a les bonnes permissions
+chmod($bulletins_dir, 0777);
+
+// Nom du fichier ZIP (sans espaces ni caractères spéciaux)
+$class_name_safe = isset($class['name']) ? preg_replace('/[^a-zA-Z0-9_-]/', '_', $class['name']) : $class_id;
+$zip_filename = "bulletins_{$class_name_safe}_{$period}.zip";
+$zip_path = "{$bulletins_dir}/{$zip_filename}";
+
+// Vérifier si l'extension ZipArchive est disponible
+if (!class_exists('ZipArchive')) {
+    die("L'extension ZipArchive n'est pas disponible sur ce serveur.");
+}
+
+// Créer un nouvel objet ZipArchive
+$zip = new ZipArchive();
+
+// Ouvrir l'archive ZIP
+$result = $zip->open($zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+if ($result !== TRUE) {
+    die("Impossible de créer l'archive ZIP (code d'erreur: $result). Vérifiez les permissions du dossier.");
+}
+
+// Compteur de bulletins ajoutés à l'archive
+$bulletins_count = 0;
+
+// Classe pour la génération des PDF
+class MYPDF extends TCPDF {
+    public function Header() {
+        $this->SetFont('helvetica', 'B', 20);
+        $this->Cell(0, 15, 'Bulletin Scolaire', 0, false, 'C', 0, '', 0, false, 'M', 'M');
+    }
+
+    public function Footer() {
+        $this->SetY(-15);
+        $this->SetFont('helvetica', 'I', 8);
+        $this->Cell(0, 10, 'Page '.$this->getAliasNumPage().'/'.$this->getAliasNbPages(), 0, false, 'C', 0, '', 0, false, 'T', 'M');
+    }
+}
+
+// Fonction pour générer un PDF de bulletin pour un étudiant
+function generateStudentBulletin($student_id, $class_id, $period, $output_path) {
+    global $admin_id;
+    
+    // Récupération des informations de l'élève
+    $student = db_fetch_row(
+        "SELECT s.*, c.name as class_name
+         FROM students s
+         JOIN class c ON CAST(s.classid AS CHAR) = CAST(c.id AS CHAR)
+         WHERE s.id = ? AND s.created_by = ? AND c.id = ?",
+        [$student_id, $admin_id, $class_id],
+        'sss'
+    );
+
+    if (!$student) {
+        return false;
+    }
+
+    // Récupération des informations du parent
+    $parent = db_fetch_row(
+        "SELECT name as parent_name, phone as parent_phone
+         FROM parent
+         WHERE id = ?",
+        [$student['parentid']],
+        's'
+    );
+
+    // Récupération des notes de l'élève avec les coefficients des matières
+    $grades = db_fetch_all(
+        "SELECT 
+            c.name as course_name,
+            c.coefficient as course_coefficient,
+            t.name as teacher_name,
+            stc.grade_type,
+            stc.grade_number,
+            stc.grade,
+            stc.coefficient as grade_coefficient
+         FROM student_teacher_course stc
+         JOIN course c ON stc.course_id = c.id
+         JOIN teachers t ON stc.teacher_id = t.id
+         WHERE stc.student_id = ?
+         AND stc.class_id = ?
+         AND stc.semester = ?
+         ORDER BY c.name, stc.grade_type, stc.grade_number",
+        [$student_id, $class_id, $period],
+        'sss'
+    );
+
+    // Calcul des moyennes par matière
+    $course_averages = [];
+    $total_weighted_average = 0;
+    $total_course_coefficients = 0;
+
+    foreach ($grades as $grade) {
+        $course = $grade['course_name'];
+        
+        if (!isset($course_averages[$course])) {
+            $course_averages[$course] = [
+                'course_coefficient' => $grade['course_coefficient'],
+                'grades' => [],
+                'total_points' => 0,
+                'total_coefficients' => 0,
+                'average' => 0
+            ];
+        }
+        
+        $course_averages[$course]['grades'][] = $grade;
+        $course_averages[$course]['total_points'] += $grade['grade'] * $grade['grade_coefficient'];
+        $course_averages[$course]['total_coefficients'] += $grade['grade_coefficient'];
+    }
+
+    // Calcul des moyennes finales par matière
+    foreach ($course_averages as $course => &$data) {
+        if ($data['total_coefficients'] > 0) {
+            $data['average'] = $data['total_points'] / $data['total_coefficients'];
+            $total_weighted_average += $data['average'] * $data['course_coefficient'];
+            $total_course_coefficients += $data['course_coefficient'];
+        }
+    }
+
+    $general_average = $total_course_coefficients > 0 ? $total_weighted_average / $total_course_coefficients : 0;
+
+    // Création d'une nouvelle instance de PDF
+    $pdf = new MYPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+
+    // Configuration du document
+    $pdf->SetCreator(PDF_CREATOR);
+    $pdf->SetAuthor('Système de Gestion Scolaire');
+    $pdf->SetTitle('Bulletin - ' . $student['name']);
+
+    // Configuration des marges
+    $pdf->SetMargins(15, 40, 15);
+    $pdf->SetHeaderMargin(20);
+    $pdf->SetFooterMargin(10);
+
+    // Ajout d'une page
+    $pdf->AddPage();
+
+    // En-tête du bulletin
+    $pdf->SetFont('helvetica', 'B', 16);
+    $pdf->Cell(0, 10, 'Année scolaire ' . date('Y') . '-' . (date('Y') + 1), 0, 1, 'C');
+    $pdf->Cell(0, 10, ($period == '1' ? '1er' : ($period == '2' ? '2ème' : '3ème')) . ' Trimestre', 0, 1, 'C');
+    $pdf->Ln(10);
+
+    // Informations de l'élève
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(0, 10, 'Informations de l\'élève', 0, 1, 'L');
+    $pdf->SetFont('helvetica', '', 10);
+    $pdf->Cell(40, 7, 'Nom :', 0, 0);
+    $pdf->Cell(0, 7, $student['name'], 0, 1);
+    $pdf->Cell(40, 7, 'Classe :', 0, 0);
+    $pdf->Cell(0, 7, $student['class_name'], 0, 1);
+    $pdf->Cell(40, 7, 'Date de naissance :', 0, 0);
+    $pdf->Cell(0, 7, isset($student['dob']) ? $student['dob'] : 'Non disponible', 0, 1);
+    $pdf->Ln(5);
+
+    // Informations du parent
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(0, 10, 'Informations du parent', 0, 1, 'L');
+    $pdf->SetFont('helvetica', '', 10);
+    if ($parent) {
+        $pdf->Cell(40, 7, 'Nom :', 0, 0);
+        $pdf->Cell(0, 7, $parent['parent_name'], 0, 1);
+        $pdf->Cell(40, 7, 'Téléphone :', 0, 0);
+        $pdf->Cell(0, 7, $parent['parent_phone'], 0, 1);
+    } else {
+        $pdf->Cell(0, 7, 'Les informations du parent ne sont pas disponibles.', 0, 1);
+    }
+    $pdf->Ln(10);
+
+    // Tableau des notes
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(0, 10, 'Notes', 0, 1, 'L');
+
+    // En-tête du tableau
+    $pdf->SetFont('helvetica', 'B', 10);
+    $header = array('Matière', 'Enseignant', 'Devoir 1', 'Devoir 2', 'Examen', 'Moyenne');
+    $w = array(50, 40, 25, 25, 25, 25);
+
+    // Couleurs, ligne et police
+    $pdf->SetFillColor(240, 240, 240);
+    $pdf->SetTextColor(0);
+    $pdf->SetDrawColor(0, 0, 0);
+    $pdf->SetLineWidth(0.1);
+    $pdf->SetFont('helvetica', 'B', 9);
+
+    // En-tête
+    for($i = 0; $i < count($header); $i++) {
+        $pdf->Cell($w[$i], 7, $header[$i], 1, 0, 'C', true);
+    }
+    $pdf->Ln();
+
+    // Données
+    $pdf->SetFont('helvetica', '', 9);
+    $pdf->SetFillColor(255, 255, 255);
+
+    foreach ($course_averages as $course => $data) {
+        $devoir1 = '';
+        $devoir2 = '';
+        $examen = '';
+        
+        foreach ($data['grades'] as $grade) {
+            if ($grade['grade_type'] === 'devoir') {
+                if ($grade['grade_number'] == 1) {
+                    $devoir1 = isset($grade['grade']) ? number_format($grade['grade'], 2) . '/20' : '-';
+                } else {
+                    $devoir2 = isset($grade['grade']) ? number_format($grade['grade'], 2) . '/20' : '-';
+                }
+            } else {
+                $examen = isset($grade['grade']) ? number_format($grade['grade'], 2) . '/20' : '-';
+            }
+        }
+
+        $pdf->Cell($w[0], 6, $course . ' (coef ' . $data['course_coefficient'] . ')', 1, 0, 'L');
+        $pdf->Cell($w[1], 6, isset($data['grades'][0]['teacher_name']) ? $data['grades'][0]['teacher_name'] : '-', 1, 0, 'L');
+        $pdf->Cell($w[2], 6, $devoir1, 1, 0, 'C');
+        $pdf->Cell($w[3], 6, $devoir2, 1, 0, 'C');
+        $pdf->Cell($w[4], 6, $examen, 1, 0, 'C');
+        $pdf->Cell($w[5], 6, isset($data['average']) ? number_format($data['average'], 2) . '/20' : '-', 1, 0, 'C');
+        $pdf->Ln();
+    }
+
+    // Moyenne générale
+    $pdf->SetFont('helvetica', 'B', 10);
+    $pdf->Cell(array_sum($w) - $w[5], 7, 'Moyenne générale :', 1, 0, 'R');
+    $pdf->Cell($w[5], 7, isset($general_average) ? number_format($general_average, 2) . '/20' : '-', 1, 1, 'C');
+
+    // Sauvegarder le PDF dans le fichier spécifié
+    return $pdf->Output($output_path, 'F');
+}
+
+// Générer les bulletins PDF pour chaque étudiant et les ajouter à l'archive ZIP
+foreach ($students as $student) {
+    $bulletin_filename = "bulletin_{$student['id']}_{$period}.pdf";
+    $bulletin_path = "{$bulletins_dir}/{$bulletin_filename}";
+    
+    // Générer le PDF du bulletin
+    if (generateStudentBulletin($student['id'], $class_id, $period, $bulletin_path)) {
+        // Vérifier que le fichier a bien été créé
+        if (file_exists($bulletin_path)) {
+            // Ajouter le fichier à l'archive
+            if ($zip->addFile($bulletin_path, $bulletin_filename)) {
+                $bulletins_count++;
+            }
+        }
+    }
+}
+
+// Fermer l'archive ZIP
+if (!$zip->close()) {
+    die("Erreur lors de la fermeture de l'archive ZIP.");
+}
+
+// Vérifier si des bulletins ont été ajoutés et si le fichier ZIP existe
+if ($bulletins_count === 0 || !file_exists($zip_path)) {
+    die("Aucun bulletin n'a pu être ajouté à l'archive ou l'archive n'a pas pu être créée.");
+}
+
+// Vérifier la taille du fichier
+$filesize = filesize($zip_path);
+if ($filesize === false || $filesize === 0) {
+    die("Le fichier ZIP est vide ou inaccessible.");
+}
+
+// Nettoyer tout le contenu mis en tampon
+ob_end_clean();
+
+// Télécharger le fichier ZIP
+header('Content-Description: File Transfer');
+header('Content-Type: application/zip');
+header('Content-Disposition: attachment; filename="' . $zip_filename . '"');
+header('Content-Length: ' . $filesize);
+header('Content-Transfer-Encoding: binary');
+header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+header('Pragma: public');
+header('Expires: 0');
+
+// Lire et envoyer le fichier
+if (readfile($zip_path) === false) {
+    die("Erreur lors de la lecture du fichier ZIP.");
+}
+
+// Supprimer les fichiers temporaires
+foreach ($students as $student) {
+    $bulletin_filename = "bulletin_{$student['id']}_{$period}.pdf";
+    $bulletin_path = "{$bulletins_dir}/{$bulletin_filename}";
+    if (file_exists($bulletin_path)) {
+        unlink($bulletin_path);
+    }
+}
+
+// Supprimer le fichier ZIP après le téléchargement (optionnel)
+// unlink($zip_path);
+
+exit();
+?>

@@ -3,11 +3,25 @@
  * Utilitaires pour la migration de mysql vers mysqli
  */
 
-// Connexion à la base de données
-$link = mysqli_connect('localhost', 'root', '', 'gestion');
+// Charger la configuration de la base de données
+require_once __DIR__ . '/db_config.php';
 
-if (!$link) {
-    die("Erreur de connexion : " . mysqli_connect_error());
+// Connexion à la base de données
+try {
+    if (!empty($db_name)) {
+        $link = mysqli_connect($db_host, $db_user, $db_password, $db_name);
+    } else {
+        // Se connecter sans spécifier de base de données
+        $link = mysqli_connect($db_host, $db_user, $db_password);
+    }
+    
+    if (!$link) {
+        error_log("Erreur de connexion à la base de données: " . mysqli_connect_error());
+        die("Erreur de connexion : " . mysqli_connect_error());
+    }
+} catch (Exception $e) {
+    error_log("Exception lors de la connexion à la base de données: " . $e->getMessage());
+    die("Erreur de connexion à la base de données. Vérifiez que le serveur MySQL est en cours d'exécution.");
 }
 
 // Définir le jeu de caractères

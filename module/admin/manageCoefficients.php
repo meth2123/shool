@@ -2,6 +2,9 @@
 include_once('main.php');
 include_once('../../service/db_utils.php');
 
+// Définir l'ID de l'administrateur connecté
+$admin_id = $_SESSION['login_id'];
+
 // Vérification de la session admin
 if (!isset($check)) {
     echo '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
@@ -17,27 +20,43 @@ $selected_class = $_GET['class_id'] ?? '';
 
 // Récupération de toutes les classes
 $classes = db_fetch_all(
-    "SELECT * FROM class ORDER BY name",
-    [],
-    ''
+    "SELECT DISTINCT c.* 
+     FROM class c 
+     INNER JOIN students s ON c.id = s.classid 
+     WHERE s.created_by = ? 
+     ORDER BY c.name",
+    [$admin_id],
+    's'
 );
 
 // Récupération des cours pour la classe sélectionnée
 $class_courses = [];
 if ($selected_class) {
-    $class_courses = db_fetch_all(
-        "SELECT DISTINCT c.*, 
-            COALESCE(c.coefficient, 1) as current_coefficient,
-            COUNT(DISTINCT stc.student_id) as student_count
-         FROM course c 
-         LEFT JOIN student_teacher_course stc ON c.id = stc.course_id 
-            AND stc.class_id = ?
-         WHERE c.classid = ?
-         GROUP BY c.id
-         ORDER BY c.name",
-        [$selected_class, $selected_class],
+    // Vérifier d'abord si la classe appartient à l'admin
+    $class_check = db_fetch_row(
+        "SELECT 1 FROM students WHERE classid = ? AND created_by = ? LIMIT 1",
+        [$selected_class, $admin_id],
         'ss'
     );
+    
+    if ($class_check) {
+        $class_courses = db_fetch_all(
+            "SELECT DISTINCT c.*, 
+                COALESCE(c.coefficient, 1) as current_coefficient,
+                COUNT(DISTINCT stc.student_id) as student_count
+             FROM course c 
+             LEFT JOIN student_teacher_course stc ON c.id = stc.course_id 
+                AND stc.class_id = ?
+             WHERE c.classid = ?
+             GROUP BY c.id
+             ORDER BY c.name",
+            [$selected_class, $selected_class],
+            'ss'
+        );
+    } else {
+        $error_message = "Vous n'avez pas accès à cette classe.";
+        $selected_class = '';
+    }
 }
 
 // Traitement de la soumission des coefficients

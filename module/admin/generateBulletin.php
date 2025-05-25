@@ -1,7 +1,10 @@
 <?php
+// Démarrer la mise en tampon de sortie pour éviter les erreurs TCPDF
+ob_start();
+
 include_once('main.php');
 include_once('../../service/db_utils.php');
-require_once('../../vendor/autoload.php'); // Assurez-vous d'avoir installé TCPDF via Composer
+require_once('../../vendor/autoload.php'); // TCPDF est maintenant installé via Composer
 
 // Vérification des droits d'administrateur
 if (!isset($check) || !isset($login_session)) {
@@ -219,6 +222,11 @@ $pdf->SetFont('helvetica', 'B', 10);
 $pdf->Cell(array_sum($w) - $w[5], 7, 'Moyenne générale :', 1, 0, 'R');
 $pdf->Cell($w[5], 7, isset($general_average) ? number_format($general_average, 2) . '/20' : '-', 1, 1, 'C');
 
+// Nettoyer tout tampon de sortie avant de générer le PDF
+ob_end_clean();
+
 // Sortie du PDF
 $pdf->Output('bulletin_' . $student_id . '_' . $period . '.pdf', 'D');
-?> 
+// Terminer le script pour éviter toute sortie supplémentaire
+exit();
+?>

@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['attendance'])) {
         $attendance_data = $_POST['attendance'];
         
         // Supprimer les anciens enregistrements pour cette date, cet étudiant et ce créneau horaire
-        $delete_query = "DELETE FROM attendance WHERE DATE(date) = ? AND attendedid = ? AND TIME(date) = ?";
+        $delete_query = "DELETE FROM attendance WHERE DATE(date) = ? AND BINARY attendedid = BINARY ? AND TIME(date) = ?";
         $stmt = $conn->prepare($delete_query);
         $stmt->bind_param("sss", $date, $student_id, $course_time);
         $stmt->execute();
@@ -72,9 +72,9 @@ $exam = db_fetch_row(
                 ELSE 'upcoming'
             END as status
      FROM examschedule e
-     JOIN course c ON e.courseid = c.id
-     JOIN class cl ON c.classid = cl.id
-     WHERE c.id = ? AND c.teacherid = ?",
+     JOIN course c ON BINARY e.courseid = BINARY c.id
+     JOIN class cl ON BINARY c.classid = BINARY cl.id
+     WHERE BINARY c.id = BINARY ? AND BINARY c.teacherid = BINARY ?",
     [$course_id, $teacher_id],
     'ss'
 );
@@ -85,45 +85,58 @@ if (!$exam) {
 }
 
 // Récupérer la liste des étudiants inscrits à ce cours
-$students = db_fetch_all(
-    "SELECT DISTINCT s.id, s.name, s.email, s.phone, s.sex, s.dob, s.addmissiondate, s.address, s.parentid, s.classid,
-            (SELECT COUNT(*) FROM attendance a 
-             WHERE a.attendedid = s.id 
-             AND DATE(a.date) = CURDATE()) as is_present
-     FROM students s
-     INNER JOIN student_teacher_course stc ON s.id = stc.student_id
-     WHERE stc.course_id = ? 
-     AND stc.teacher_id = ?
-     ORDER BY s.name",
-    [$course_id, $teacher_id],
-    'ss'
-);
+// Utiliser directement mysqli pour éviter les problèmes de collation
+$students_query = "SELECT s.id, s.name, s.email, s.phone, s.classid,
+         (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END 
+         FROM attendance a 
+         WHERE BINARY a.attendedid = BINARY s.id
+         AND DATE(a.date) = CURDATE()) as is_present
+ FROM students s
+ INNER JOIN student_teacher_course stc ON BINARY s.id = BINARY stc.student_id
+ WHERE BINARY stc.course_id = BINARY ?
+ AND BINARY stc.teacher_id = BINARY ?
+ ORDER BY s.name";
+
+$stmt = $conn->prepare($students_query);
+$stmt->bind_param("ss", $course_id, $teacher_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$students = [];
+while ($row = $result->fetch_assoc()) {
+    $students[] = $row;
+}
+$stmt->close();
 
 // Récupérer les statistiques de présence pour aujourd'hui
-$today_stats = db_fetch_row(
-    "WITH unique_students AS (
-        SELECT DISTINCT student_id
-        FROM student_teacher_course
-        WHERE course_id = ?
-    ),
-    attendance_stats AS (
-        SELECT 
-            s.id,
-            CASE WHEN a.attendedid IS NOT NULL THEN 1 ELSE 0 END as is_present
-        FROM students s
-        INNER JOIN unique_students us ON s.id = us.student_id
-        LEFT JOIN attendance a ON s.id = a.attendedid 
-            AND DATE(a.date) = CURDATE()
-            AND TIME(a.date) = ?
-    )
+// Utiliser directement mysqli pour éviter les problèmes de collation
+$course_time = $_POST['course_time'] ?? '08:00:00';
+$stats_query = "WITH unique_students AS (
+    SELECT DISTINCT student_id
+    FROM student_teacher_course
+    WHERE BINARY course_id = BINARY ?
+),
+attendance_stats AS (
     SELECT 
-        COUNT(*) as total_students,
-        SUM(is_present) as present_count,
-        COUNT(*) - SUM(is_present) as absent_count
-    FROM attendance_stats",
-    [$course_id, $_POST['course_time'] ?? '08:00:00'],
-    'ss'
-);
+        s.id,
+        CASE WHEN a.attendedid IS NOT NULL THEN 1 ELSE 0 END as is_present
+    FROM students s
+    INNER JOIN unique_students us ON BINARY s.id = BINARY us.student_id
+    LEFT JOIN attendance a ON BINARY s.id = BINARY a.attendedid
+        AND DATE(a.date) = CURDATE()
+        AND TIME(a.date) = ?
+)
+SELECT 
+    COUNT(*) as total_students,
+    SUM(is_present) as present_count,
+    COUNT(*) - SUM(is_present) as absent_count
+FROM attendance_stats";
+
+$stmt = $conn->prepare($stats_query);
+$stmt->bind_param("ss", $course_id, $course_time);
+$stmt->execute();
+$result = $stmt->get_result();
+$today_stats = $result->fetch_assoc();
+$stmt->close();
 ?>
 <!DOCTYPE html>
 <html lang="fr">

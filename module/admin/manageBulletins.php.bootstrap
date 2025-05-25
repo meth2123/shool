@@ -1,0 +1,315 @@
+<?php
+include_once('main.php');
+include_once('../../service/db_utils.php');
+
+// Vérification des droits d'administrateur
+if (!isset($check) || !isset($login_session)) {
+    echo '<div class="alert alert-danger" role="alert">
+            <strong>Erreur!</strong> Accès non autorisé.
+          </div>';
+    exit();
+}
+
+$admin_id = $_SESSION['login_id'];
+$loged_user_name = $check; // Pour le template layout.php
+
+// Récupération des classes créées par cet admin
+$classes = db_fetch_all(
+    "SELECT id, name FROM class WHERE created_by = ? ORDER BY name",
+    [$admin_id],
+    's'
+);
+
+// Filtres
+$selected_class = $_GET['class'] ?? '';
+$selected_period = $_GET['period'] ?? '';
+$current_year = date('Y');
+$school_year = (date('n') >= 9) ? $current_year . '-' . ($current_year + 1) : ($current_year - 1) . '-' . $current_year;
+
+// Construction de la requête de base pour les bulletins
+$query = "WITH student_grades AS (
+    SELECT 
+        s.id as student_id,
+        s.name as student_name,
+        c.id as class_id,
+        c.name as class_name,
+        co.name as course_name,
+        co.coefficient as course_coefficient,
+        stc.grade_type,
+        stc.grade_number,
+        stc.grade,
+        stc.coefficient as grade_coefficient,
+        stc.semester,
+        t.name as teacher_name
+    FROM class c
+    JOIN students s ON CAST(s.classid AS CHAR) = CAST(c.id AS CHAR)
+    JOIN student_teacher_course stc ON CAST(stc.student_id AS CHAR) = CAST(s.id AS CHAR)
+        AND CAST(stc.class_id AS CHAR) = CAST(c.id AS CHAR)
+    JOIN course co ON stc.course_id = co.id
+    JOIN teachers t ON stc.teacher_id = t.id
+    WHERE c.created_by = ?
+    AND stc.semester = ?
+    " . ($selected_class ? "AND c.id = ?" : "") . "
+),
+grade_calculations AS (
+    SELECT 
+        student_id,
+        student_name,
+        class_id,
+        class_name,
+        course_name,
+        course_coefficient,
+        teacher_name,
+        -- Calcul des moyennes par matière
+        ROUND(
+            SUM(grade * grade_coefficient) / NULLIF(SUM(grade_coefficient), 0),
+            2
+        ) as course_average,
+        -- Nombre de notes par matière
+        COUNT(*) as grade_count,
+        -- Liste des notes
+        GROUP_CONCAT(
+            CONCAT(
+                grade_type, ' ', grade_number, ': ',
+                grade, ' (coef ', grade_coefficient, ')'
+            ) ORDER BY grade_type, grade_number
+            SEPARATOR ' | '
+        ) as grade_details
+    FROM student_grades
+    GROUP BY student_id, student_name, class_id, class_name, course_name, course_coefficient, teacher_name
+)
+SELECT 
+    student_id,
+    student_name,
+    class_id,
+    class_name,
+    -- Moyenne générale pondérée
+    ROUND(
+        SUM(course_average * course_coefficient) / NULLIF(SUM(course_coefficient), 0),
+        2
+    ) as general_average,
+    -- Nombre total de matières
+    COUNT(DISTINCT course_name) as total_courses,
+    -- Nombre total de notes
+    SUM(grade_count) as total_grades,
+    -- Détails des notes par matière
+    GROUP_CONCAT(
+        CONCAT(
+            course_name, ' (', course_coefficient, '): ',
+            course_average, '/20 - ', teacher_name,
+            ' [', grade_details, ']'
+        ) ORDER BY course_name
+        SEPARATOR '\n'
+    ) as course_details
+FROM grade_calculations
+GROUP BY student_id, student_name, class_id, class_name
+ORDER BY class_name, student_name";
+
+$params = [$admin_id, $selected_period ?: '1'];
+$types = 'ss';
+
+if ($selected_class) {
+    $params[] = $selected_class;
+    $types .= 's';
+}
+
+// Récupération des bulletins avec les calculs détaillés
+$bulletins = db_fetch_all($query, $params, $types);
+
+$content = '
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">Gestion des Bulletins</h1>
+        <div class="text-muted">
+            Année scolaire : ' . htmlspecialchars($school_year) . '
+        </div>
+    </div>
+
+    <!-- Filtres -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h2 class="h5 mb-3">Filtres</h2>
+            <form method="GET">
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <label for="class" class="form-label">Classe</label>
+                        <select id="class" name="class" class="form-select">
+                            <option value="">Toutes les classes</option>';
+                            foreach ($classes as $class) {
+                                $content .= '<option value="' . htmlspecialchars($class['id']) . '" ' . 
+                                          ($selected_class === $class['id'] ? 'selected' : '') . '>' .
+                                          htmlspecialchars($class['name']) . '</option>';
+                            }
+$content .= '
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label for="period" class="form-label">Période</label>
+                        <select id="period" name="period" class="form-select">
+                            <option value="">Toutes les périodes</option>
+                            <option value="1" ' . ($selected_period === '1' ? 'selected' : '') . '>1er Trimestre</option>
+                            <option value="2" ' . ($selected_period === '2' ? 'selected' : '') . '>2ème Trimestre</option>
+                            <option value="3" ' . ($selected_period === '3' ? 'selected' : '') . '>3ème Trimestre</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-filter me-2"></i>Filtrer
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Liste des bulletins -->
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Classe</th>
+                            <th>Élève</th>
+                            <th>Moyenne Générale</th>
+                            <th>Matières</th>
+                            <th>Notes</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>';
+
+if (empty($bulletins)) {
+    $content .= '
+        <tr>
+            <td colspan="6" class="text-center text-muted py-3">
+                Aucun bulletin trouvé pour les critères sélectionnés.
+            </td>
+        </tr>';
+} else {
+    foreach ($bulletins as $bulletin) {
+        // Déterminer la mention
+        $mention = '';
+        if ($bulletin['general_average'] >= 16) {
+            $mention = 'Très Bien';
+        } elseif ($bulletin['general_average'] >= 14) {
+            $mention = 'Bien';
+        } elseif ($bulletin['general_average'] >= 12) {
+            $mention = 'Assez Bien';
+        } elseif ($bulletin['general_average'] >= 10) {
+            $mention = 'Passable';
+        } else {
+            $mention = 'Insuffisant';
+        }
+
+        $content .= '
+        <tr>
+            <td>' . htmlspecialchars($bulletin['class_name']) . '</td>
+            <td>' . htmlspecialchars($bulletin['student_name']) . '</td>
+            <td>
+                <div class="' . ($bulletin['general_average'] >= 10 ? 'text-success' : 'text-danger') . ' fw-bold">
+                    ' . number_format($bulletin['general_average'], 2) . '/20
+                </div>
+                <div class="small text-muted">' . $mention . '</div>
+            </td>
+            <td>' . $bulletin['total_courses'] . ' matières</td>
+            <td>
+                ' . $bulletin['total_grades'] . ' notes
+                <button type="button" 
+                        class="btn btn-sm btn-link p-0 ms-2"
+                        data-bs-toggle="modal" 
+                        data-bs-target="#gradeDetailsModal" 
+                        onclick="showGradeDetails(\'' . htmlspecialchars(addslashes($bulletin['course_details'])) . '\')">
+                    Voir détails
+                </button>
+            </td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <a href="viewBulletin.php?student=' . htmlspecialchars($bulletin['student_id']) . 
+                       '&class=' . htmlspecialchars($bulletin['class_id']) . 
+                       '&period=' . htmlspecialchars($selected_period ?: '1') . '"
+                       class="btn btn-outline-primary">
+                       <i class="fas fa-eye me-1"></i>Voir
+                    </a>
+                    <a href="generateBulletin.php?student=' . htmlspecialchars($bulletin['student_id']) . 
+                       '&class=' . htmlspecialchars($bulletin['class_id']) . 
+                       '&period=' . htmlspecialchars($selected_period ?: '1') . '"
+                       class="btn btn-outline-success">
+                       <i class="fas fa-file-pdf me-1"></i>PDF
+                    </a>
+                </div>
+            </td>
+        </tr>';
+    }
+}
+
+$content .= '
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Actions supplémentaires -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h3 class="h5 mb-0">Actions rapides</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <a href="addGrades.php" class="btn btn-outline-primary w-100">
+                                <i class="fas fa-plus-circle me-2"></i>Ajouter des notes
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="manageGrades.php" class="btn btn-outline-secondary w-100">
+                                <i class="fas fa-edit me-2"></i>Gérer les notes
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="bulkGenerateBulletins.php" class="btn btn-outline-success w-100">
+                                <i class="fas fa-file-pdf me-2"></i>Génération par lot
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour afficher les détails des notes -->
+<div class="modal fade" id="gradeDetailsModal" tabindex="-1" aria-labelledby="gradeDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="gradeDetailsModalLabel">Détails des notes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="gradeDetailsContent" class="small text-pre-wrap"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.text-pre-wrap {
+    white-space: pre-wrap;
+}
+</style>
+
+<script>
+function showGradeDetails(details) {
+    document.getElementById("gradeDetailsContent").textContent = details;
+}
+</script>';
+
+include('templates/layout.php');
+?>

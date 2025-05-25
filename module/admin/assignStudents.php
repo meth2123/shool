@@ -1,17 +1,16 @@
 <?php
 include_once('main.php');
+include_once('includes/auth_check.php');
 include_once('../../service/db_utils.php');
 
-// Vérification des droits d'administrateur
-if (!isset($check) || !isset($login_session)) {
-    echo '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-            <strong class="font-bold">Erreur!</strong>
-            <span class="block sm:inline">Accès non autorisé.</span>
-          </div>';
-    exit();
-}
+// Activer l'affichage des erreurs
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-$admin_id = $_SESSION['login_id'];
+// La vérification des droits d'administrateur est déjà faite dans auth_check.php
+// L'ID de l'administrateur est déjà défini dans auth_check.php
+
 $success_message = '';
 $error_message = '';
 
@@ -137,111 +136,130 @@ if ($selected_class) {
 }
 
 $content = '
-<div class="container mx-auto px-4 py-8">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold text-gray-800">Assignation des Élèves</h1>
-    </div>
-
-    ' . ($success_message ? '<div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4">' . htmlspecialchars($success_message) . '</div>' : '') . '
-    ' . ($error_message ? '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">' . htmlspecialchars($error_message) . '</div>' : '') . '
-
-    <!-- Sélection de la classe -->
-    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-        <h2 class="text-xl font-semibold text-gray-800 mb-4">Sélectionner une classe</h2>
-        <form method="GET" class="grid grid-cols-1 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Classe</label>
-                <select name="class" onchange="this.form.submit()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="">Sélectionner une classe</option>';
-                    foreach ($classes as $class) {
-                        $content .= '<option value="' . htmlspecialchars($class['id']) . '" ' . 
-                                  ($selected_class === $class['id'] ? 'selected' : '') . '>' .
-                                  htmlspecialchars($class['name']) . '</option>';
-                    }
-$content .= '
-                </select>
+<div class="container py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3">Assignation des Élèves</h1>
             </div>
-        </form>
-    </div>';
+
+            ' . ($success_message ? '<div class="alert alert-success mb-4">' . htmlspecialchars($success_message) . '</div>' : '') . '
+            ' . ($error_message ? '<div class="alert alert-danger mb-4">' . htmlspecialchars($error_message) . '</div>' : '') . '
+
+            <!-- Sélection de la classe -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Sélectionner une classe</h2>
+                    <form method="GET">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="class-select" class="form-label">Classe</label>
+                                    <select id="class-select" name="class" onchange="this.form.submit()" class="form-select">
+                                        <option value="">Sélectionner une classe</option>';
+                                        foreach ($classes as $class) {
+                                            $content .= '<option value="' . htmlspecialchars($class['id']) . '" ' . 
+                                                      ($selected_class === $class['id'] ? 'selected' : '') . '>' .
+                                                      htmlspecialchars($class['name']) . '</option>';
+                                        }
+$content .= '
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>';
 
 if ($selected_class && !empty($students)) {
     $content .= '
     <!-- Formulaire d\'assignation -->
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-xl font-semibold text-gray-800 mb-4">Assigner les élèves</h2>
-        <form method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <input type="hidden" name="class_id" value="' . htmlspecialchars($selected_class) . '">
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Enseignant</label>
-                <select name="teacher_id" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="">Sélectionner un enseignant</option>';
-                    foreach ($teachers as $teacher) {
-                        $content .= '<option value="' . htmlspecialchars($teacher['id']) . '">' .
-                                  htmlspecialchars($teacher['name']) . '</option>';
-                    }
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h2 class="h5 mb-3">Assigner les élèves</h2>
+            <form method="POST">
+                <input type="hidden" name="class_id" value="' . htmlspecialchars($selected_class) . '">
+                
+                <div class="row mb-3">
+                    <div class="col-md-6 mb-3 mb-md-0">
+                        <label for="teacher-select" class="form-label">Enseignant</label>
+                        <select id="teacher-select" name="teacher_id" required class="form-select">
+                            <option value="">Sélectionner un enseignant</option>';
+                            foreach ($teachers as $teacher) {
+                                $content .= '<option value="' . htmlspecialchars($teacher['id']) . '">' .
+                                          htmlspecialchars($teacher['name']) . '</option>';
+                            }
     $content .= '
-                </select>
-            </div>
+                        </select>
+                    </div>
 
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Cours</label>
-                <select name="course_id" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="">Sélectionner un cours</option>';
-                    foreach ($courses as $course) {
-                        $content .= '<option value="' . htmlspecialchars($course['id']) . '">' .
-                                  htmlspecialchars($course['name']) . '</option>';
-                    }
+                    <div class="col-md-6">
+                        <label for="course-select" class="form-label">Cours</label>
+                        <select id="course-select" name="course_id" required class="form-select">
+                            <option value="">Sélectionner un cours</option>';
+                            foreach ($courses as $course) {
+                                $content .= '<option value="' . htmlspecialchars($course['id']) . '">' .
+                                          htmlspecialchars($course['name']) . '</option>';
+                            }
     $content .= '
-                </select>
-            </div>
-
-            <div class="md:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Élèves</label>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 max-h-96 overflow-y-auto p-4 border rounded-md">';
-                foreach ($students as $student) {
-                    $content .= '
-                    <div class="flex items-center">
-                        <input type="checkbox" name="student_ids[]" value="' . htmlspecialchars($student['id']) . '" 
-                               class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-                        <label class="ml-2 block text-sm text-gray-900">
-                            ' . htmlspecialchars($student['name']) . '
-                        </label>
-                    </div>';
-                }
-    $content .= '
+                        </select>
+                    </div>
                 </div>
-            </div>
 
-            <div class="md:col-span-2">
-                <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                    Enregistrer les assignations
-                </button>
-            </div>
-        </form>
+                <div class="mb-3">
+                    <label class="form-label">Élèves</label>
+                    <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                        <div class="row">';
+                        foreach ($students as $student) {
+                            $content .= '
+                            <div class="col-md-4 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="student_ids[]" 
+                                           value="' . htmlspecialchars($student['id']) . '" id="student-' . htmlspecialchars($student['id']) . '">
+                                    <label class="form-check-label" for="student-' . htmlspecialchars($student['id']) . '">
+                                        ' . htmlspecialchars($student['name']) . '
+                                    </label>
+                                </div>
+                            </div>';
+                        }
+    $content .= '
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Enregistrer les assignations
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Tableau des assignations actuelles -->
-    <div class="mt-8 bg-white rounded-lg shadow-md overflow-hidden">
-        <h2 class="text-xl font-semibold text-gray-800 p-6">Assignations actuelles</h2>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Élève</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enseignant</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cours</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">';
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <h2 class="h5 mb-0">Assignations actuelles</h2>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Élève</th>
+                            <th>Enseignant</th>
+                            <th>Cours</th>
+                        </tr>
+                    </thead>
+                    <tbody>';
 
     if (empty($current_assignments)) {
         $content .= '
-                    <tr>
-                        <td colspan="3" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                            Aucune assignation trouvée pour cette classe.
-                        </td>
-                    </tr>';
+                        <tr>
+                            <td colspan="3" class="text-center py-4 text-muted">
+                                Aucune assignation trouvée pour cette classe.
+                            </td>
+                        </tr>';
     } else {
         foreach ($current_assignments as $assignment) {
             $student_name = db_fetch_row(
@@ -261,23 +279,26 @@ if ($selected_class && !empty($students)) {
             )['name'];
 
             $content .= '
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . htmlspecialchars($student_name) . '</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . htmlspecialchars($teacher_name) . '</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . htmlspecialchars($course_name) . '</td>
-                    </tr>';
+                        <tr>
+                            <td>' . htmlspecialchars($student_name) . '</td>
+                            <td>' . htmlspecialchars($teacher_name) . '</td>
+                            <td>' . htmlspecialchars($course_name) . '</td>
+                        </tr>';
         }
     }
 
     $content .= '
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>';
 }
 
 $content .= '
+        </div>
+    </div>
 </div>';
 
 include('templates/layout.php');
-?> 
+?>

@@ -1,7 +1,9 @@
 <?php
 include_once('main.php');
+include_once('includes/auth_check.php');
 include_once('../../service/mysqlcon.php');
 
+// L'ID de l'administrateur est déjà défini dans auth_check.php
 $admin_id = $_SESSION['login_id'];
 
 // Gestion du mois et année sélectionnés
@@ -9,8 +11,13 @@ $selected_month = isset($_GET['month']) ? intval($_GET['month']) : intval(date('
 $selected_year = isset($_GET['year']) ? intval($_GET['year']) : intval(date('Y'));
 
 // Fonction pour obtenir le nombre de jours dans un mois
-function getDaysInMonth($month, $year) {
-    return cal_days_in_month(CAL_GREGORIAN, $month, $year);
+function getDaysInMonth($month = null, $year = null) {
+    // Si les paramètres ne sont pas fournis, utiliser le mois et l'année courants
+    if ($month === null) $month = date('m');
+    if ($year === null) $year = date('Y');
+    
+    // Utiliser date('t') qui retourne le nombre de jours dans un mois
+    return date('t', mktime(0, 0, 0, $month, 1, $year));
 }
 
 // Traitement du paiement des salaires
@@ -168,231 +175,244 @@ $months = array(
     10 => "Octobre", 11 => "Novembre", 12 => "Décembre"
 );
 
-?>
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion des Salaires</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-</head>
-<body class="bg-gray-100">
-    <!-- Header -->
-    <div class="bg-white shadow-md">
-        <div class="container mx-auto px-4 py-6">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center">
-                    <img src="../../source/logo.jpg" class="h-16 w-16 object-contain mr-4" alt="School Management System"/>
-                    <h1 class="text-2xl font-bold text-gray-800">Système de Gestion Scolaire</h1>
+// Contenu de la page
+$content = '
+<div class="container py-4">
+    <!-- Sélection du mois -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h2 class="h4 mb-3">Sélectionner la période</h2>
+            <form method="GET" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label for="month" class="form-label">Mois</label>
+                    <select id="month" name="month" class="form-select">
+                        ';
+                        foreach ($months as $num => $name) {
+                            $content .= '<option value="' . $num . '" ' . ($num == $selected_month ? 'selected' : '') . '>' . 
+                                      htmlspecialchars($name) . '</option>';
+                        }
+                        $content .= '
+                    </select>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <a href="index.php" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition duration-200">
-                        <i class="fas fa-tachometer-alt mr-2"></i>Tableau de bord
-                    </a>
-                    <span class="text-gray-600">Bonjour, <?php echo htmlspecialchars($login_session); ?></span>
-                    <a href="logout.php" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition duration-200">
-                        <i class="fas fa-sign-out-alt mr-2"></i>Déconnexion
-                    </a>
+                <div class="col-md-4">
+                    <label for="year" class="form-label">Année</label>
+                    <select id="year" name="year" class="form-select">
+                        ';
+                        $current_year = intval(date('Y'));
+                        // Permettre la sélection d'années de 2020 à 2060
+                        for ($y = 2060; $y >= 2020; $y--) {
+                            $content .= '<option value="' . $y . '" ' . ($y == $selected_year ? 'selected' : '') . '>' . 
+                                      $y . '</option>';
+                        }
+                        $content .= '
+                    </select>
                 </div>
-            </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-filter me-2"></i>Filtrer
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
-    <div class="container mx-auto px-4 py-8">
-        <!-- Sélection du mois -->
-        <div class="mb-8">
-            <form method="GET" class="flex items-center space-x-4">
-                <select name="month" class="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <?php foreach ($months as $num => $name): ?>
-                        <option value="<?php echo $num; ?>" <?php echo ($num == $selected_month ? 'selected' : ''); ?>>
-                            <?php echo htmlspecialchars($name); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <select name="year" class="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <?php 
-                    $current_year = intval(date('Y'));
-                    for ($y = $current_year; $y >= $current_year - 2; $y--): 
-                    ?>
-                        <option value="<?php echo $y; ?>" <?php echo ($y == $selected_year ? 'selected' : ''); ?>>
-                            <?php echo $y; ?>
-                        </option>
-                    <?php endfor; ?>
-                </select>
-                <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
-                    <i class="fas fa-filter mr-2"></i>Filtrer
-                </button>
-            </form>
-        </div>
+    <!-- Messages -->
+    ';
+    if (isset($success_message)) {
+        $content .= '
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            ' . htmlspecialchars($success_message) . '
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>';
+    }
+    
+    if (isset($error_message)) {
+        $content .= '
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            ' . htmlspecialchars($error_message) . '
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>';
+    }
+    
+    $content .= '
 
-        <?php if (isset($success_message)): ?>
-            <div class="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
-                <?php echo htmlspecialchars($success_message); ?>
-            </div>
-        <?php endif; ?>
-
-        <?php if (isset($error_message)): ?>
-            <div class="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-                <?php echo htmlspecialchars($error_message); ?>
-            </div>
-        <?php endif; ?>
-
-        <!-- Actions -->
-        <div class="mb-8 flex justify-between items-center">
-            <div class="flex space-x-4">
-                <a href="updateTeacherSalary.php" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
-                    <i class="fas fa-edit mr-2"></i>Modifier Salaires Enseignants
+    <!-- Actions -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="btn-group">
+                <a href="updateTeacherSalary.php" class="btn btn-outline-primary">
+                    <i class="fas fa-edit me-2"></i>Modifier Salaires Enseignants
                 </a>
-                <a href="updateStaffSalary.php" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
-                    <i class="fas fa-edit mr-2"></i>Modifier Salaires Personnel
+                <a href="updateStaffSalary.php" class="btn btn-outline-primary">
+                    <i class="fas fa-edit me-2"></i>Modifier Salaires Personnel
                 </a>
             </div>
-            <?php if ($selected_month == intval(date('m')) && $selected_year == intval(date('Y'))): ?>
-            <form method="POST" class="flex justify-end">
-                <button type="submit" name="pay_salaries" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg">
-                    <i class="fas fa-money-bill-wave mr-2"></i>Payer les salaires du mois
-                </button>
-            </form>
-            <?php endif; ?>
         </div>
+        <div class="col-md-4 text-end">
+            ';
+            if ($selected_month == intval(date('m')) && $selected_year == intval(date('Y'))) {
+                $content .= '
+                <form method="POST">
+                    <button type="submit" name="pay_salaries" class="btn btn-success">
+                        <i class="fas fa-money-bill-wave me-2"></i>Payer les salaires du mois
+                    </button>
+                </form>';
+            }
+            $content .= '
+        </div>
+    </div>
 
-        <!-- Section Salaires Enseignants -->
-        <div class="mb-8">
-            <h2 class="text-2xl font-bold text-gray-900 mb-4">Salaires des Enseignants</h2>
-            <div class="bg-white shadow-md rounded-lg overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salaire Base</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jours Présent</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jours Absent</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salaire à Payer</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            <?php while ($row = $teacher_result->fetch_assoc()): ?>
-                                <tr class="hover:bg-gray-50">
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <?php echo htmlspecialchars($row['id']); ?>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <?php echo htmlspecialchars($row['name']); ?>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <?php echo number_format($row['salary'], 2); ?> €
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">
-                                        <?php echo $row['present_days']; ?>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">
-                                        <?php echo $row['absent_days']; ?>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                                        <?php echo number_format($row['currentmonthlysalary'], 2); ?> €
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                        <?php if ($row['payment_date']): ?>
-                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                                Payé le <?php echo date('d/m/Y', strtotime($row['payment_date'])); ?>
-                                            </span>
-                                        <?php else: ?>
-                                            <div class="flex items-center space-x-2">
-                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                                                    En attente
-                                                </span>
-                                                <?php if ($selected_month == intval(date('m')) && $selected_year == intval(date('Y'))): ?>
-                                                <form method="POST" class="inline">
-                                                    <input type="hidden" name="employee_id" value="<?php echo $row['id']; ?>">
+    <!-- Section Salaires Enseignants -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h2 class="h4 mb-0">Salaires des Enseignants</h2>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Nom</th>
+                            <th>Salaire Base</th>
+                            <th>Jours Présent</th>
+                            <th>Jours Absent</th>
+                            <th>Salaire à Payer</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ';
+                        if ($teacher_result->num_rows > 0) {
+                            while ($row = $teacher_result->fetch_assoc()) {
+                                $content .= '
+                                <tr>
+                                    <td>' . htmlspecialchars($row['id']) . '</td>
+                                    <td>' . htmlspecialchars($row['name']) . '</td>
+                                    <td>' . number_format($row['salary'], 2) . ' €</td>
+                                    <td class="text-success">' . $row['present_days'] . '</td>
+                                    <td class="text-danger">' . $row['absent_days'] . '</td>
+                                    <td class="fw-bold text-primary">' . number_format($row['currentmonthlysalary'], 2) . ' €</td>
+                                    <td>';
+                                    
+                                    if ($row['payment_date']) {
+                                        $content .= '
+                                        <span class="badge bg-success">
+                                            Payé le ' . date('d/m/Y', strtotime($row['payment_date'])) . '
+                                        </span>';
+                                    } else {
+                                        $content .= '
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="badge bg-warning">En attente</span>';
+                                            
+                                            if ($selected_month == intval(date('m')) && $selected_year == intval(date('Y'))) {
+                                                $content .= '
+                                                <form method="POST" class="d-inline">
+                                                    <input type="hidden" name="employee_id" value="' . $row['id'] . '">
                                                     <input type="hidden" name="employee_type" value="teacher">
-                                                    <button type="submit" name="pay_salary" class="bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-1 rounded">
-                                                        <i class="fas fa-money-bill-wave mr-1"></i>Payer
+                                                    <button type="submit" name="pay_salary" class="btn btn-sm btn-success">
+                                                        <i class="fas fa-money-bill-wave me-1"></i>Payer
                                                     </button>
-                                                </form>
-                                                <?php endif; ?>
-                                            </div>
-                                        <?php endif; ?>
+                                                </form>';
+                                            }
+                                            
+                                        $content .= '
+                                        </div>';
+                                    }
+                                    
+                                $content .= '
                                     </td>
-                                </tr>
-                            <?php endwhile; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- Section Salaires Personnel -->
-        <div>
-            <h2 class="text-2xl font-bold text-gray-900 mb-4">Salaires du Personnel</h2>
-            <div class="bg-white shadow-md rounded-lg overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
+                                </tr>';
+                            }
+                        } else {
+                            $content .= '
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salaire Base</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jours Présent</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jours Absent</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salaire à Payer</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            <?php while ($row = $staff_result->fetch_assoc()): ?>
-                                <tr class="hover:bg-gray-50">
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <?php echo htmlspecialchars($row['id']); ?>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <?php echo htmlspecialchars($row['name']); ?>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <?php echo number_format($row['salary'], 2); ?> €
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">
-                                        <?php echo $row['present_days']; ?>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">
-                                        <?php echo $row['absent_days']; ?>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                                        <?php echo number_format($row['currentmonthlysalary'], 2); ?> €
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                        <?php if ($row['payment_date']): ?>
-                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                                                Payé le <?php echo date('d/m/Y', strtotime($row['payment_date'])); ?>
-                                            </span>
-                                        <?php else: ?>
-                                            <div class="flex items-center space-x-2">
-                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                                                    En attente
-                                                </span>
-                                                <?php if ($selected_month == intval(date('m')) && $selected_year == intval(date('Y'))): ?>
-                                                <form method="POST" class="inline">
-                                                    <input type="hidden" name="employee_id" value="<?php echo $row['id']; ?>">
-                                                    <input type="hidden" name="employee_type" value="staff">
-                                                    <button type="submit" name="pay_salary" class="bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-1 rounded">
-                                                        <i class="fas fa-money-bill-wave mr-1"></i>Payer
-                                                    </button>
-                                                </form>
-                                                <?php endif; ?>
-                                            </div>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endwhile; ?>
-                        </tbody>
-                    </table>
-                </div>
+                                <td colspan="7" class="text-center py-3 text-muted">Aucun enseignant trouvé</td>
+                            </tr>';
+                        }
+                        $content .= '
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
-</body>
-</html>
+
+    <!-- Section Salaires Personnel -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <h2 class="h4 mb-0">Salaires du Personnel</h2>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Nom</th>
+                            <th>Salaire Base</th>
+                            <th>Jours Présent</th>
+                            <th>Jours Absent</th>
+                            <th>Salaire à Payer</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ';
+                        if ($staff_result->num_rows > 0) {
+                            while ($row = $staff_result->fetch_assoc()) {
+                                $content .= '
+                                <tr>
+                                    <td>' . htmlspecialchars($row['id']) . '</td>
+                                    <td>' . htmlspecialchars($row['name']) . '</td>
+                                    <td>' . number_format($row['salary'], 2) . ' €</td>
+                                    <td class="text-success">' . $row['present_days'] . '</td>
+                                    <td class="text-danger">' . $row['absent_days'] . '</td>
+                                    <td class="fw-bold text-primary">' . number_format($row['currentmonthlysalary'], 2) . ' €</td>
+                                    <td>';
+                                    
+                                    if ($row['payment_date']) {
+                                        $content .= '
+                                        <span class="badge bg-success">
+                                            Payé le ' . date('d/m/Y', strtotime($row['payment_date'])) . '
+                                        </span>';
+                                    } else {
+                                        $content .= '
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="badge bg-warning">En attente</span>';
+                                            
+                                            if ($selected_month == intval(date('m')) && $selected_year == intval(date('Y'))) {
+                                                $content .= '
+                                                <form method="POST" class="d-inline">
+                                                    <input type="hidden" name="employee_id" value="' . $row['id'] . '">
+                                                    <input type="hidden" name="employee_type" value="staff">
+                                                    <button type="submit" name="pay_salary" class="btn btn-sm btn-success">
+                                                        <i class="fas fa-money-bill-wave me-1"></i>Payer
+                                                    </button>
+                                                </form>';
+                                            }
+                                            
+                                        $content .= '
+                                        </div>';
+                                    }
+                                    
+                                $content .= '
+                                    </td>
+                                </tr>';
+                            }
+                        } else {
+                            $content .= '
+                            <tr>
+                                <td colspan="7" class="text-center py-3 text-muted">Aucun membre du personnel trouvé</td>
+                            </tr>';
+                        }
+                        $content .= '
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>';
+
+// Inclure le template layout
+include('templates/layout.php');
+?>

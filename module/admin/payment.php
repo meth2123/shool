@@ -1,125 +1,52 @@
 <?php
 include_once('main.php');
+include_once('includes/auth_check.php');
 require_once('../../db/config.php');
 include_once('../../service/db_utils.php');
 
-// Debug connection info
-error_log("=== Debug Payment.php ===");
+// Activer l'affichage des erreurs
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-// Get admin ID for filtering
-$admin_id = $_SESSION['login_id'];
-error_log("Admin ID from session: " . $admin_id);
+// L'ID de l'administrateur est déjà défini dans auth_check.php
+// $admin_id = $_SESSION['login_id'];
 
-// Initialize database connection
-$conn = getDbConnection();
-if (!$conn) {
-    error_log("Database connection failed!");
-} else {
-    error_log("Database connection successful");
-    
-    // Debug query to see all payments
-    $debug_sql = "SELECT p.*, s.name as student_name 
-                  FROM payment p 
-                  INNER JOIN students s ON p.studentid = s.id 
-                  LIMIT 5";
-    $debug_result = $conn->query($debug_sql);
-    error_log("=== All Payments (Debug) ===");
-    if ($debug_result && $debug_result->num_rows > 0) {
-        while ($row = $debug_result->fetch_assoc()) {
-            error_log("Payment ID: " . $row['id'] . 
-                     ", Student: " . $row['student_name'] . 
-                     ", Created by: " . (isset($row['created_by']) ? $row['created_by'] : 'NULL'));
-        }
-    } else {
-        error_log("No payments found at all in the database!");
-    }
-    
-    // Check if created_by column exists
-    $check_column_sql = "SHOW COLUMNS FROM payment LIKE 'created_by'";
-    $column_result = $conn->query($check_column_sql);
-    if ($column_result && $column_result->num_rows > 0) {
-        error_log("created_by column exists in payment table");
-    } else {
-        error_log("created_by column does NOT exist in payment table!");
-    }
-}
-
-// Get payments for current month/year and only for students created by this admin
-$sql = "SELECT p.*, s.name as student_name 
-        FROM payment p 
-        INNER JOIN students s ON p.studentid = s.id 
-        WHERE p.created_by = ?
-        ORDER BY p.id DESC";
-
-error_log("SQL Query: " . $sql);
-error_log("Admin ID for query: " . $admin_id);
-
-try {
-    $stmt = $conn->prepare($sql);
-    if (!$stmt) {
-        error_log("Prepare failed: " . $conn->error);
-    } else {
-        $stmt->bind_param("s", $admin_id);
-        $success = $stmt->execute();
-        if (!$success) {
-            error_log("Execute failed: " . $stmt->error);
-        } else {
-            $result = $stmt->get_result();
-            error_log("Number of rows found: " . $result->num_rows);
-            
-            // Debug first row if exists
-            if ($result->num_rows > 0) {
-                $firstRow = $result->fetch_assoc();
-                error_log("First payment found: " . print_r($firstRow, true));
-                $result->data_seek(0); // Reset pointer
-            }
-        }
-    }
-} catch (Exception $e) {
-    error_log("Exception occurred: " . $e->getMessage());
-}
-
-// Debug result
-error_log("Number of rows found: " . $result->num_rows);
-
-while ($row = $result->fetch_assoc()) {
-    error_log("Payment ID: " . $row['id'] . 
-              ", Student: " . $row['student_name'] . 
-              ", Month: " . $row['month'] . 
-              ", Year: " . $row['year'] . 
-              ", Created by: " . $row['created_by']);
-}
-
-// Reset result pointer
-$result->data_seek(0);
-
-// Close database connection
-$stmt->close();
-$conn->close();
-
-// Vérifier si l'utilisateur est connecté en tant qu'admin
-if (!isset($check) || !str_starts_with($check, 'ad-')) {
-    header("Location: ../../?error=unauthorized");
-    exit();
-}
+// La vérification de l'authentification est déjà faite dans auth_check.php
 
 // Fonction pour obtenir les classes
 function getClasses() {
-    return db_fetch_all("SELECT * FROM class ORDER BY name");
+    global $admin_id;
+    return db_fetch_all("
+        SELECT DISTINCT c.* 
+        FROM class c 
+        INNER JOIN students s ON c.id = s.classid 
+        WHERE s.created_by = ? 
+        ORDER BY c.name", 
+        [$admin_id], 
+        's'
+    );
 }
 
 // Fonction pour obtenir les montants des paiements par classe
 function getClassPaymentAmounts() {
+    global $admin_id;
     return db_fetch_all("
         SELECT cpa.*, c.name as class_name 
         FROM class_payment_amount cpa 
         JOIN class c ON cpa.class_id = c.id 
-        ORDER BY c.name
-    ");
+        JOIN students s ON c.id = s.classid 
+        WHERE s.created_by = ? 
+        GROUP BY cpa.id, c.name 
+        ORDER BY c.name",
+        [$admin_id],
+        's'
+    );
 }
 
 // Fonction pour obtenir l'historique des paiements
 function getPaymentHistory($filters = []) {
+    global $admin_id;
     $query = "
         SELECT p.*, 
                s.name as student_name,
@@ -134,10 +61,10 @@ function getPaymentHistory($filters = []) {
         JOIN students s ON p.studentid = s.id
         JOIN class c ON s.classid = c.id
         LEFT JOIN admin a ON p.created_by = a.id
-        WHERE 1=1
+        WHERE s.created_by = ?
     ";
-    $params = [];
-    $types = '';
+    $params = [$admin_id];
+    $types = 's';
 
     if (!empty($filters['class_id'])) {
         $query .= " AND s.classid = ?";
@@ -214,316 +141,297 @@ db_execute("
         UNIQUE KEY unique_class (class_id)
     )
 ");
-?>
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion des Paiements - Administration</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="JS/login_logout.js"></script>
-</head>
-<body class="bg-gray-100">
-    <!-- Header -->
-    <div class="bg-white shadow-md">
-        <div class="container mx-auto px-4 py-6">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center">
-                    <img src="../../source/logo.jpg" class="h-16 w-16 object-contain mr-4" alt="School Management System"/>
-                    <h1 class="text-2xl font-bold text-gray-800">Système de Gestion Scolaire</h1>
-                </div>
-                <div class="flex items-center">
-                    <span class="mr-4">Bonjour, <?php echo htmlspecialchars($check);?></span>
-                    <a href="logout.php" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition duration-200">
-                        <i class="fas fa-sign-out-alt mr-2"></i>Déconnexion
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Navigation -->
-    <nav class="bg-white shadow-md mt-4">
-        <div class="container mx-auto px-4">
-            <div class="flex space-x-4 py-4">
-                <a href="index.php" class="text-gray-600 hover:text-blue-500 px-3 py-2 rounded-md">
-                    <i class="fas fa-home mr-2"></i>Accueil
-                </a>
-                <a href="addPayment.php" class="text-gray-600 hover:text-blue-500 px-3 py-2 rounded-md">
-                    <i class="fas fa-plus-circle mr-2"></i>Ajouter un Paiement
-                </a>
-                <a href="deletePayment.php" class="text-gray-600 hover:text-blue-500 px-3 py-2 rounded-md">
-                    <i class="fas fa-trash mr-2"></i>Supprimer un Paiement
-                </a>
-            </div>
-        </div>
-    </nav>
+// Récupérer les paiements du mois en cours
+$conn = getDbConnection();
+$sql = "SELECT p.*, s.name as student_name 
+        FROM payment p 
+        INNER JOIN students s ON p.studentid = s.id 
+        WHERE p.created_by = ?
+        ORDER BY p.id DESC";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("s", $admin_id);
+$stmt->execute();
+$result = $stmt->get_result();
 
-    <!-- Main Content -->
-    <div class="container mx-auto px-4 py-8">
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-6">
-                <i class="fas fa-money-bill-wave mr-2 text-blue-500"></i>
+$content = '
+<div class="container py-4">
+    <!-- Section 1: Paiements du Mois en Cours -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h2 class="h4 mb-4">
+                <i class="fas fa-money-bill-wave me-2 text-primary"></i>
                 Paiements du Mois en Cours
             </h2>
 
-            <div class="overflow-x-auto">
-                <table class="min-w-full bg-white">
-                    <thead class="bg-gray-50">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Étudiant</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mois</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Année</th>
+                            <th>ID</th>
+                            <th>Étudiant</th>
+                            <th>Montant</th>
+                            <th>Mois</th>
+                            <th>Année</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200">
-                        <?php if ($result->num_rows > 0): ?>
-                            <?php while($row = $result->fetch_assoc()): ?>
-                                <tr class="hover:bg-gray-50">
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <?php echo htmlspecialchars($row['id']); ?>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <?php echo htmlspecialchars($row['student_name']) . " (" . htmlspecialchars($row['studentid']) . ")"; ?>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <?php echo number_format($row['amount'], 2) . " €"; ?>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <?php echo htmlspecialchars($row['month']); ?>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <?php echo htmlspecialchars($row['year']); ?>
-                                    </td>
-                                </tr>
-                            <?php endwhile; ?>
-                        <?php else: ?>
+                    <tbody>';
+                    
+                    if ($result->num_rows > 0) {
+                        while($row = $result->fetch_assoc()) {
+                            $content .= '
                             <tr>
-                                <td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">
-                                    <i class="fas fa-info-circle mr-2"></i>
-                                    Aucun paiement trouvé pour ce mois
-                                </td>
-                            </tr>
-                        <?php endif; ?>
+                                <td>' . htmlspecialchars($row['id']) . '</td>
+                                <td>' . htmlspecialchars($row['student_name']) . ' (' . htmlspecialchars($row['studentid']) . ')</td>
+                                <td>' . number_format($row['amount'], 2) . ' €</td>
+                                <td>' . htmlspecialchars($row['month']) . '</td>
+                                <td>' . htmlspecialchars($row['year']) . '</td>
+                            </tr>';
+                        }
+                    } else {
+                        $content .= '
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-3">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Aucun paiement trouvé pour ce mois
+                            </td>
+                        </tr>';
+                    }
+                    
+                    $content .= '
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- Section 1: Gestion des montants des paiements -->
-    <div class="bg-white shadow-lg rounded-lg overflow-hidden mb-8">
-        <div class="p-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-6">Configuration des montants des paiements</h2>
+    <!-- Section 2: Configuration des montants des paiements -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h2 class="h4 mb-4">Configuration des montants des paiements</h2>
             
             <!-- Formulaire pour définir les montants -->
-            <form method="POST" class="mb-8">
+            <form method="POST" class="mb-4">
                 <input type="hidden" name="action" value="set_payment_amount">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Classe</label>
-                        <select name="class_id" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                            <option value="">Sélectionner une classe</option>
-                            <?php foreach ($classes as $class): ?>
-                                <option value="<?php echo htmlspecialchars($class['id']); ?>">
-                                    <?php echo htmlspecialchars($class['name']); ?>
-                                </option>
-                            <?php endforeach; ?>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="class_id" class="form-label">Classe</label>
+                        <select id="class_id" name="class_id" required class="form-select">
+                            <option value="">Sélectionner une classe</option>';
+                            
+                            foreach ($classes as $class) {
+                                $content .= '<option value="' . htmlspecialchars($class['id']) . '">' . 
+                                          htmlspecialchars($class['name']) . '</option>';
+                            }
+                            
+                            $content .= '
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Montant mensuel (€)</label>
-                        <input type="number" name="amount" step="0.01" min="0" required
-                               class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <div class="col-md-4">
+                        <label for="amount" class="form-label">Montant mensuel (€)</label>
+                        <input type="number" id="amount" name="amount" step="0.01" min="0" required class="form-control">
                     </div>
-                    <div class="flex items-end">
-                        <button type="submit" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                            <i class="fas fa-save mr-2"></i>Enregistrer
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save me-2"></i>Enregistrer
                         </button>
                     </div>
                 </div>
             </form>
 
             <!-- Tableau des montants actuels -->
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Classe</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant mensuel</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dernière mise à jour</th>
+                            <th>Classe</th>
+                            <th>Montant mensuel</th>
+                            <th>Dernière mise à jour</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        <?php foreach ($paymentAmounts as $amount): ?>
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <?php echo htmlspecialchars($amount['class_name']); ?>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <?php echo number_format($amount['amount'], 2); ?> €
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <?php echo date('d/m/Y H:i', strtotime($amount['updated_at'])); ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
+                    <tbody>';
+                    
+                    foreach ($paymentAmounts as $amount) {
+                        $content .= '
+                        <tr>
+                            <td>' . htmlspecialchars($amount['class_name']) . '</td>
+                            <td>' . number_format($amount['amount'], 2) . ' €</td>
+                            <td>' . date('d/m/Y H:i', strtotime($amount['updated_at'])) . '</td>
+                        </tr>';
+                    }
+                    
+                    if (empty($paymentAmounts)) {
+                        $content .= '
+                        <tr>
+                            <td colspan="3" class="text-center text-muted py-3">
+                                Aucun montant configuré
+                            </td>
+                        </tr>';
+                    }
+                    
+                    $content .= '
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- Section 2: Historique des paiements -->
-    <div class="bg-white shadow-lg rounded-lg overflow-hidden">
-        <div class="p-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-6">Historique des paiements</h2>
+    <!-- Section 3: Historique des paiements -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h2 class="h4 mb-4">Historique des paiements</h2>
 
             <!-- Filtres -->
-            <form method="GET" class="mb-6">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Classe</label>
-                        <select name="class_id" class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                            <option value="">Toutes les classes</option>
-                            <?php foreach ($classes as $class): ?>
-                                <option value="<?php echo htmlspecialchars($class['id']); ?>"
-                                        <?php echo isset($_GET['class_id']) && $_GET['class_id'] === $class['id'] ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($class['name']); ?>
-                                </option>
-                            <?php endforeach; ?>
+            <form method="GET" class="mb-4">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label for="class_id_filter" class="form-label">Classe</label>
+                        <select id="class_id_filter" name="class_id" class="form-select">
+                            <option value="">Toutes les classes</option>';
+                            
+                            foreach ($classes as $class) {
+                                $content .= '<option value="' . htmlspecialchars($class['id']) . '"' . 
+                                          (isset($_GET['class_id']) && $_GET['class_id'] === $class['id'] ? ' selected' : '') . '>' . 
+                                          htmlspecialchars($class['name']) . '</option>';
+                            }
+                            
+                            $content .= '
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Année</label>
-                        <select name="year" class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                            <option value="">Toutes les années</option>
-                            <?php 
-                                $currentYear = date('Y');
-                                for ($year = $currentYear; $year >= $currentYear - 2; $year--) {
-                                    echo '<option value="' . $year . '"' . 
+                    <div class="col-md-3">
+                        <label for="year_filter" class="form-label">Année</label>
+                        <select id="year_filter" name="year" class="form-select">
+                            <option value="">Toutes les années</option>';
+                            
+                            $currentYear = date('Y');
+                            for ($year = $currentYear; $year >= $currentYear - 2; $year--) {
+                                $content .= '<option value="' . $year . '"' . 
                                          (isset($_GET['year']) && $_GET['year'] == $year ? ' selected' : '') . '>' . 
                                          $year . '</option>';
-                                }
-                            ?>
+                            }
+                            
+                            $content .= '
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Mois</label>
-                        <select name="month" class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                            <option value="">Tous les mois</option>
-                            <?php 
-                                $months = [
-                                    10 => 'Octobre', 11 => 'Novembre', 12 => 'Décembre',
-                                    1 => 'Janvier', 2 => 'Février', 3 => 'Mars',
-                                    4 => 'Avril', 5 => 'Mai', 6 => 'Juin'
-                                ];
-                                foreach ($months as $num => $name) {
-                                    echo '<option value="' . $num . '"' . 
+                    <div class="col-md-3">
+                        <label for="month_filter" class="form-label">Mois</label>
+                        <select id="month_filter" name="month" class="form-select">
+                            <option value="">Tous les mois</option>';
+                            
+                            $months = [
+                                10 => 'Octobre', 11 => 'Novembre', 12 => 'Décembre',
+                                1 => 'Janvier', 2 => 'Février', 3 => 'Mars',
+                                4 => 'Avril', 5 => 'Mai', 6 => 'Juin'
+                            ];
+                            foreach ($months as $num => $name) {
+                                $content .= '<option value="' . $num . '"' . 
                                          (isset($_GET['month']) && $_GET['month'] == $num ? ' selected' : '') . '>' . 
                                          $name . '</option>';
-                                }
-                            ?>
+                            }
+                            
+                            $content .= '
                         </select>
                     </div>
-                    <div class="flex items-end">
-                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                            <i class="fas fa-filter mr-2"></i>Filtrer
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-filter me-2"></i>Filtrer
                         </button>
                     </div>
                 </div>
             </form>
 
             <!-- Tableau des paiements -->
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Étudiant</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Classe</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mois</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Année</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Effectué par</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                            <th>Étudiant</th>
+                            <th>Classe</th>
+                            <th>Mois</th>
+                            <th>Année</th>
+                            <th>Montant</th>
+                            <th>Source</th>
+                            <th>Effectué par</th>
+                            <th>Date</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        <?php foreach ($paymentHistory as $payment): ?>
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <?php echo htmlspecialchars($payment['student_name']); ?>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <?php echo htmlspecialchars($payment['class_name']); ?>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <?php 
-                                        $months = [
-                                            10 => 'Octobre', 11 => 'Novembre', 12 => 'Décembre',
-                                            1 => 'Janvier', 2 => 'Février', 3 => 'Mars',
-                                            4 => 'Avril', 5 => 'Mai', 6 => 'Juin'
-                                        ];
-                                        echo $months[$payment['month']] ?? $payment['month'];
-                                    ?>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <?php echo $payment['year']; ?>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <?php echo number_format($payment['amount'], 2); ?> €
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                        <?php 
-                                            echo $payment['payment_source'] === 'Administration' 
-                                                ? 'bg-blue-100 text-blue-800' 
-                                                : ($payment['payment_source'] === 'Parent' 
-                                                    ? 'bg-green-100 text-green-800' 
-                                                    : 'bg-gray-100 text-gray-800');
-                                        ?>">
-                                        <?php echo htmlspecialchars($payment['payment_source']); ?>
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <?php 
-                                        if ($payment['payment_source'] === 'Administration' && $payment['admin_name']) {
-                                            echo htmlspecialchars($payment['admin_name']);
-                                        } else {
-                                            echo '-';
-                                        }
-                                    ?>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <?php 
-                                        if (isset($payment['created_at'])) {
-                                            echo date('d/m/Y H:i', strtotime($payment['created_at']));
-                                        } else {
-                                            echo date('d/m/Y', strtotime($payment['year'] . '-' . $payment['month'] . '-01'));
-                                        }
-                                    ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
+                    <tbody>';
+                    
+                    if (!empty($paymentHistory)) {
+                        foreach ($paymentHistory as $payment) {
+                            $badgeClass = $payment['payment_source'] === 'Administration' 
+                                ? 'bg-primary' 
+                                : ($payment['payment_source'] === 'Parent' 
+                                    ? 'bg-success' 
+                                    : 'bg-secondary');
+                                    
+                            $content .= '
+                            <tr>
+                                <td>' . htmlspecialchars($payment['student_name']) . '</td>
+                                <td>' . htmlspecialchars($payment['class_name']) . '</td>
+                                <td>';
+                                
+                                $months = [
+                                    10 => 'Octobre', 11 => 'Novembre', 12 => 'Décembre',
+                                    1 => 'Janvier', 2 => 'Février', 3 => 'Mars',
+                                    4 => 'Avril', 5 => 'Mai', 6 => 'Juin'
+                                ];
+                                $content .= $months[$payment['month']] ?? $payment['month'];
+                                
+                                $content .= '</td>
+                                <td>' . $payment['year'] . '</td>
+                                <td>' . number_format($payment['amount'], 2) . ' €</td>
+                                <td><span class="badge ' . $badgeClass . '">' . htmlspecialchars($payment['payment_source']) . '</span></td>
+                                <td>';
+                                
+                                if ($payment['payment_source'] === 'Administration' && $payment['admin_name']) {
+                                    $content .= htmlspecialchars($payment['admin_name']);
+                                } else {
+                                    $content .= '-';
+                                }
+                                
+                                $content .= '</td>
+                                <td>';
+                                
+                                if (isset($payment['created_at'])) {
+                                    $content .= date('d/m/Y H:i', strtotime($payment['created_at']));
+                                } else {
+                                    $content .= date('d/m/Y', strtotime($payment['year'] . '-' . $payment['month'] . '-01'));
+                                }
+                                
+                                $content .= '</td>
+                            </tr>';
+                        }
+                    } else {
+                        $content .= '
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-3">
+                                Aucun paiement trouvé avec les filtres sélectionnés
+                            </td>
+                        </tr>';
+                    }
+                    
+                    $content .= '
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
-</div>
-
-<!-- Footer -->
-<footer class="bg-white shadow-lg mt-8">
-    <div class="max-w-7xl mx-auto py-4 px-4">
-        <p class="text-center text-gray-500 text-sm">
-            © <?php echo date('Y'); ?> Système de Gestion Scolaire. Tous droits réservés.
-        </p>
+    
+    <!-- Actions rapides -->
+    <div class="d-flex justify-content-center mt-4">
+        <a href="addPayment.php" class="btn btn-primary me-2">
+            <i class="fas fa-plus-circle me-2"></i>Ajouter un Paiement
+        </a>
+        <a href="deletePayment.php" class="btn btn-danger">
+            <i class="fas fa-trash me-2"></i>Supprimer un Paiement
+        </a>
     </div>
-</footer>
-</body>
-</html>
+</div>';
+
+// Fermer la connexion à la base de données
+$stmt->close();
+$conn->close();
+
+include('templates/layout.php');
+?>

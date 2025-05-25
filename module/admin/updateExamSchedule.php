@@ -109,35 +109,36 @@ $courses_result = $stmt->get_result();
 error_log("Nombre de cours disponibles : " . $courses_result->num_rows);
 ?>
 
-<div class="container mx-auto px-4 py-8">
-    <div class="max-w-2xl mx-auto">
-        <!-- En-tête -->
-        <div class="mb-8">
-            <h2 class="text-3xl font-bold text-gray-800 mb-4">Modifier un Planning d'Examen</h2>
-            <p class="text-gray-600">Modifiez les informations de l'examen ci-dessous</p>
-        </div>
-
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-8">
+            <!-- En-tête -->
+            <div class="mb-4">
+                <h2>Modifier un Planning d'Examen</h2>
+                <p class="text-muted">Mettez à jour les informations du planning d'examen</p>
+            </div>
+            
         <!-- Messages de notification -->
         <?php if($success_message): ?>
-        <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6" role="alert">
-            <p><?php echo $success_message; ?></p>
+        <div class="alert alert-success mb-4" role="alert">
+            <?php echo $success_message; ?>
         </div>
         <?php endif; ?>
 
         <?php if($error_message): ?>
-        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
-            <p><?php echo $error_message; ?></p>
+        <div class="alert alert-danger mb-4" role="alert">
+            <?php echo $error_message; ?>
         </div>
         <?php endif; ?>
 
         <?php if(!$exam_data): ?>
-        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-            <div class="flex">
-                <div class="flex-shrink-0">
-                    <i class="fas fa-exclamation-circle text-yellow-400"></i>
+        <div class="alert alert-warning mb-4">
+            <div class="d-flex">
+                <div class="me-3">
+                    <i class="fas fa-exclamation-circle"></i>
                 </div>
-                <div class="ml-3">
-                    <p class="text-sm text-yellow-700">
+                <div>
+                    <p class="mb-0">
                         Aucun examen trouvé avec cet identifiant.
                     </p>
                 </div>
@@ -145,37 +146,40 @@ error_log("Nombre de cours disponibles : " . $courses_result->num_rows);
         </div>
         <?php else: ?>
         <!-- Formulaire -->
-        <form action="" method="post" class="bg-white shadow-lg rounded-lg p-6">
-            <div class="space-y-6">
+        <form action="" method="post" class="card shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">Informations de l'examen</h5>
+            </div>
+            <div class="card-body">
                 <!-- ID de l'examen -->
-                <div>
-                    <label for="id" class="block text-sm font-medium text-gray-700 mb-2">ID de l'examen</label>
+                <div class="mb-3">
+                    <label for="id" class="form-label">ID de l'examen</label>
                     <input type="text" name="id" id="id" readonly
                         value="<?php echo htmlspecialchars($exam_data['id']); ?>"
-                        class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm focus:outline-none">
+                        class="form-control bg-light">
                 </div>
 
                 <!-- Date de l'examen -->
-                <div>
-                    <label for="examdate" class="block text-sm font-medium text-gray-700 mb-2">Date de l'examen</label>
+                <div class="mb-3">
+                    <label for="examdate" class="form-label">Date de l'examen</label>
                     <input type="date" name="examdate" id="examdate" required
                         value="<?php echo htmlspecialchars($exam_data['examdate']); ?>"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        class="form-control">
                 </div>
 
                 <!-- Heure de l'examen -->
-                <div>
-                    <label for="examtime" class="block text-sm font-medium text-gray-700 mb-2">Horaire de l'examen</label>
+                <div class="mb-3">
+                    <label for="examtime" class="form-label">Horaire de l'examen</label>
                     <input type="time" name="examtime" id="examtime" required
                         value="<?php echo htmlspecialchars($exam_data['time']); ?>"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        class="form-control">
                 </div>
 
                 <!-- Cours -->
-                <div>
-                    <label for="courseid" class="block text-sm font-medium text-gray-700 mb-2">Cours</label>
+                <div class="mb-3">
+                    <label for="courseid" class="form-label">Cours</label>
                     <select name="courseid" id="courseid" required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        class="form-select">
                         <option value="">Sélectionnez un cours</option>
                         <?php while($course = $courses_result->fetch_assoc()): ?>
                         <option value="<?php echo htmlspecialchars($course['id']); ?>"
@@ -186,20 +190,18 @@ error_log("Nombre de cours disponibles : " . $courses_result->num_rows);
                     </select>
                 </div>
 
-                <!-- Boutons -->
-                <div class="flex justify-end space-x-4 pt-4">
-                    <a href="viewExamSchedule.php" 
-                        class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                        Annuler
-                    </a>
-                    <button type="submit" name="submit" value="submit"
-                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                        Mettre à jour
-                    </button>
-                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-end gap-2">
+                <a href="viewExamSchedule.php" class="btn btn-outline-secondary">
+                    <i class="fas fa-times me-2"></i>Annuler
+                </a>
+                <button type="submit" name="submit" value="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Mettre à jour
+                </button>
             </div>
         </form>
         <?php endif; ?>
+        </div>
     </div>
 </div>
 

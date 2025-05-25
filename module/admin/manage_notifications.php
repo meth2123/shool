@@ -1,0 +1,443 @@
+<?php
+// Ne pas démarrer la session ici car elle est déjà démarrée dans main.php
+require_once __DIR__ . '/../../service/mysqlcon.php';
+require_once __DIR__ . '/../../service/NotificationService.php';
+require_once __DIR__ . '/../../service/AuthService.php';
+include_once('main.php'); // Inclure main.php qui démarre déjà la session
+
+// Vérifier si l'utilisateur est connecté et est un administrateur
+$authService = new AuthService($link);
+if (!$authService->isLoggedIn() || $_SESSION['user_type'] !== 'admin') {
+    header('Location: /gestion/login.php');
+    exit;
+}
+
+// Vérifier et ajouter la colonne created_by si elle n'existe pas
+$result = $link->query("SHOW COLUMNS FROM students LIKE 'created_by'");
+if ($result->num_rows === 0) {
+    $link->query("ALTER TABLE students ADD COLUMN created_by VARCHAR(50) NOT NULL DEFAULT 'admin_default'");
+    // Mettre à jour les enregistrements existants
+    $link->query("UPDATE students SET created_by = 'admin_default' WHERE created_by IS NULL");
+}
+
+// Récupérer le nom de l'administrateur
+$stmt = $link->prepare("SELECT name FROM admin WHERE id = ?");
+$stmt->bind_param("s", $_SESSION['user_id']);
+$stmt->execute();
+$result = $stmt->get_result();
+$row = $result->fetch_assoc();
+$login_session = $row['name'] ?? 'Administrateur';
+
+// Désactiver temporairement les contraintes de clé étrangère
+$link->query("SET FOREIGN_KEY_CHECKS = 0");
+
+// Uniformiser les collations des tables concernées
+try {
+    // Convertir toutes les tables en utf8mb4
+    $link->query("ALTER TABLE admin CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $link->query("ALTER TABLE notifications CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $link->query("ALTER TABLE teachers CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $link->query("ALTER TABLE students CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $link->query("ALTER TABLE parents CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    
+    // Modifier spécifiquement la colonne created_by dans notifications
+    $link->query("ALTER TABLE notifications MODIFY created_by VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL");
+} catch (Exception $e) {
+    // En cas d'erreur, enregistrer l'erreur mais continuer
+    error_log("Erreur lors de la conversion des tables: " . $e->getMessage());
+}
+
+// Réactiver les contraintes de clé étrangère
+$link->query("SET FOREIGN_KEY_CHECKS = 1");
+
+// Traiter l'ajout d'une nouvelle notification
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    $notificationService = new NotificationService($link, $_SESSION['user_id'], 'admin');
+    
+    switch ($_POST['action']) {
+        case 'create':
+            $title = $_POST['title'] ?? '';
+            $message = $_POST['message'] ?? '';
+            $type = $_POST['type'] ?? 'info';
+            $link_url = $_POST['link'] ?? null;
+            $target_type = $_POST['target_type'] ?? '';
+            $target_ids = $_POST['target_ids'] ?? [];
+            
+            if (empty($title) || empty($message) || empty($target_type)) {
+                $_SESSION['error'] = "Tous les champs obligatoires doivent être remplis";
+            } else {
+                if (empty($target_ids)) {
+                    // Notification pour tous les utilisateurs du type spécifié
+                    if ($notificationService->createForAllUsersOfType($title, $message, $target_type, $type, $link_url)) {
+                        $_SESSION['success'] = "Notification envoyée à tous les " . $target_type . "s";
+                    } else {
+                        $_SESSION['error'] = "Erreur lors de l'envoi de la notification";
+                    }
+                } else {
+                    // Notification pour des utilisateurs spécifiques
+                    if ($notificationService->createForMultipleUsers($title, $message, $target_ids, $target_type, $type, $link_url)) {
+                        $_SESSION['success'] = "Notification envoyée aux utilisateurs sélectionnés";
+                    } else {
+                        $_SESSION['error'] = "Erreur lors de l'envoi de la notification";
+                    }
+                }
+            }
+            break;
+            
+        case 'delete':
+            $notification_id = $_POST['notification_id'] ?? null;
+            if ($notification_id) {
+                if ($notificationService->delete($notification_id)) {
+                    $_SESSION['success'] = "Notification supprimée avec succès";
+                } else {
+                    $_SESSION['error'] = "Erreur lors de la suppression de la notification";
+                }
+            }
+            break;
+    }
+    
+    header('Location: manage_notifications.php');
+    exit;
+}
+
+// Récupérer les utilisateurs pour le formulaire
+$users = [
+    'teacher' => [],
+    'student' => []
+];
+
+// Récupérer les enseignants créés par cet administrateur
+$stmt = $link->prepare("SELECT id, name FROM teachers WHERE created_by = ? ORDER BY name");
+$stmt->bind_param("s", $_SESSION['user_id']);
+$stmt->execute();
+$result = $stmt->get_result();
+while ($row = $result->fetch_assoc()) {
+    $users['teacher'][] = $row;
+}
+
+// Récupérer les élèves créés par cet administrateur
+$stmt = $link->prepare("SELECT id, name FROM students WHERE created_by = ? ORDER BY name");
+$stmt->bind_param("s", $_SESSION['user_id']);
+$stmt->execute();
+$result = $stmt->get_result();
+while ($row = $result->fetch_assoc()) {
+    $users['student'][] = $row;
+}
+
+// Pagination pour les notifications existantes
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$per_page = 20;
+$offset = ($page - 1) * $per_page;
+
+// Récupérer toutes les notifications
+$stmt = $link->prepare("
+    SELECT n.*, 
+           CASE 
+               WHEN n.user_type = 'admin' THEN a.name
+               WHEN n.user_type = 'teacher' THEN t.name
+               WHEN n.user_type = 'student' THEN s.name
+           END as user_name,
+           a2.name as created_by_name
+    FROM notifications n
+    LEFT JOIN admin a ON n.user_type = 'admin' AND n.user_id = a.id
+    LEFT JOIN teachers t ON n.user_type = 'teacher' AND n.user_id = t.id
+    LEFT JOIN students s ON n.user_type = 'student' AND n.user_id = s.id
+    LEFT JOIN admin a2 ON n.created_by = a2.id
+    WHERE n.created_by = ? OR 
+          (n.user_type = 'teacher' AND t.created_by = ?) OR 
+          (n.user_type = 'student' AND s.created_by = ?)
+    ORDER BY n.created_at DESC
+    LIMIT ? OFFSET ?
+");
+$stmt->bind_param("sssii", $_SESSION['user_id'], $_SESSION['user_id'], $_SESSION['user_id'], $per_page, $offset);
+$stmt->execute();
+$notifications = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+// Compter le total des notifications pour cet administrateur
+$stmt = $link->prepare("
+    SELECT COUNT(*) as count 
+    FROM notifications n
+    LEFT JOIN teachers t ON n.user_type = 'teacher' AND n.user_id = t.id
+    LEFT JOIN students s ON n.user_type = 'student' AND n.user_id = s.id
+    WHERE n.created_by = ? OR 
+          (n.user_type = 'teacher' AND t.created_by = ?) OR 
+          (n.user_type = 'student' AND s.created_by = ?)
+");
+$stmt->bind_param("sss", $_SESSION['user_id'], $_SESSION['user_id'], $_SESSION['user_id']);
+$stmt->execute();
+$total_notifications = $stmt->get_result()->fetch_assoc()['count'];
+$total_pages = ceil($total_notifications / $per_page);
+
+// Définir le titre de la page
+$page_title = "Gestion des Notifications";
+?>
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des Notifications</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .notification-card {
+            transition: all 0.2s ease;
+        }
+        .notification-card:hover {
+            background-color: #f8f9fa;
+        }
+        .badge-info {
+            background-color: #0dcaf0;
+            color: #fff;
+        }
+        .badge-success {
+            background-color: #198754;
+            color: #fff;
+        }
+        .badge-warning {
+            background-color: #ffc107;
+            color: #000;
+        }
+        .badge-error {
+            background-color: #dc3545;
+            color: #fff;
+        }
+        .select2-container {
+            width: 100% !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="h3 mb-0">Gestion des Notifications</h1>
+            </div>
+        </div>
+        
+        <?php if (isset($_SESSION['success'])): ?>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <?php echo $_SESSION['success']; ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <?php unset($_SESSION['success']); ?>
+        <?php endif; ?>
+        
+        <?php if (isset($_SESSION['error'])): ?>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <?php echo $_SESSION['error']; ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <?php unset($_SESSION['error']); ?>
+        <?php endif; ?>
+        
+        <!-- Formulaire d'ajout de notification -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">Envoyer une nouvelle notification</h5>
+            </div>
+            <div class="card-body">
+                <form action="manage_notifications.php" method="POST">
+                    <input type="hidden" name="action" value="create">
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="title" class="form-label">Titre <span class="text-danger">*</span></label>
+                            <input type="text" name="title" id="title" required class="form-control">
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="type" class="form-label">Type <span class="text-danger">*</span></label>
+                            <select name="type" id="type" required class="form-select">
+                                <option value="info">Information</option>
+                                <option value="success">Succès</option>
+                                <option value="warning">Avertissement</option>
+                                <option value="error">Erreur</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="message" class="form-label">Message <span class="text-danger">*</span></label>
+                        <textarea name="message" id="message" rows="3" required class="form-control"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="link" class="form-label">Lien (optionnel)</label>
+                        <input type="url" name="link" id="link" class="form-control" placeholder="https://...">
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="target_type" class="form-label">Type de destinataire <span class="text-danger">*</span></label>
+                            <select name="target_type" id="target_type" required class="form-select">
+                                <option value="">Sélectionnez un type</option>
+                                <option value="teacher">Enseignants</option>
+                                <option value="student">Élèves</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="target_ids" class="form-label">Destinataires spécifiques (optionnel)</label>
+                            <select name="target_ids[]" id="target_ids" multiple class="form-select" disabled>
+                                <option value="">Sélectionnez d'abord un type de destinataire</option>
+                            </select>
+                            <div class="form-text">Laissez vide pour envoyer à tous les utilisateurs du type sélectionné.</div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane me-2"></i>Envoyer la notification
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Liste des notifications -->
+        <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Notifications envoyées</h5>
+                <span class="badge bg-secondary"><?php echo count($notifications); ?> notification(s)</span>
+            </div>
+            
+            <?php if (empty($notifications)): ?>
+            <div class="card-body text-center py-5">
+                <i class="fas fa-bell-slash fa-3x text-muted mb-3"></i>
+                <p class="text-muted">Aucune notification envoyée pour le moment.</p>
+            </div>
+            <?php else: ?>
+            <div class="list-group list-group-flush">
+                <?php foreach ($notifications as $notification): ?>
+                <div class="list-group-item notification-card p-3">
+                    <div class="row">
+                        <div class="col-md-9">
+                            <div class="d-flex align-items-center mb-2">
+                                <h6 class="mb-0 me-2"><?php echo htmlspecialchars($notification['title']); ?></h6>
+                                <span class="badge badge-<?php echo $notification['type']; ?> me-2"><?php echo $notification['type']; ?></span>
+                                <small class="text-muted">
+                                    <?php echo date('d/m/Y H:i', strtotime($notification['created_at'])); ?>
+                                </small>
+                            </div>
+                            
+                            <p class="mb-2"><?php echo nl2br(htmlspecialchars($notification['message'])); ?></p>
+                            
+                            <?php if (!empty($notification['link'])): ?>
+                            <a href="<?php echo htmlspecialchars($notification['link']); ?>" target="_blank" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-external-link-alt me-1"></i>Voir le lien
+                            </a>
+                            <?php endif; ?>
+                            
+                            <div class="mt-2 small">
+                                <span class="badge bg-light text-dark me-2">
+                                    <i class="fas fa-user me-1"></i>
+                                    <?php echo ucfirst($notification['user_type']); ?>: 
+                                    <?php echo htmlspecialchars($notification['user_name'] ?? 'Inconnu'); ?>
+                                </span>
+                                
+                                <span class="badge bg-light text-dark">
+                                    <i class="fas fa-clock me-1"></i>
+                                    <?php echo $notification['is_read'] ? 'Lu' : 'Non lu'; ?>
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-3 text-md-end mt-3 mt-md-0">
+                            <form action="manage_notifications.php" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette notification?');">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="notification_id" value="<?php echo $notification['id']; ?>">
+                                <button type="submit" class="btn btn-outline-danger">
+                                    <i class="fas fa-trash-alt me-2"></i>Supprimer
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+            
+            <?php if ($total_pages > 1): ?>
+            <div class="card-footer bg-white">
+                <nav aria-label="Pagination des notifications">
+                    <ul class="pagination justify-content-center mb-0">
+                        <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
+                            <a class="page-link" href="?page=<?php echo $page - 1; ?>" aria-label="Précédent">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        
+                        <?php for ($i = max(1, $page - 2); $i <= min($total_pages, $page + 2); $i++): ?>
+                        <li class="page-item <?php echo $i === $page ? 'active' : ''; ?>">
+                            <a class="page-link" href="?page=<?php echo $i; ?>"><?php echo $i; ?></a>
+                        </li>
+                        <?php endfor; ?>
+                        
+                        <li class="page-item <?php echo $page >= $total_pages ? 'disabled' : ''; ?>">
+                            <a class="page-link" href="?page=<?php echo $page + 1; ?>" aria-label="Suivant">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Select2 -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    
+    <script>
+    // Données des utilisateurs pour le formulaire
+    const users = <?php echo json_encode($users); ?>;
+    
+    $(document).ready(function() {
+        // Initialiser Select2 pour une meilleure expérience de sélection multiple
+        $('#target_ids').select2({
+            placeholder: 'Sélectionnez les destinataires',
+            allowClear: true
+        });
+        
+        // Gérer le changement de type de destinataire
+        $('#target_type').change(function() {
+            const targetType = $(this).val();
+            const targetIdsSelect = $('#target_ids');
+            
+            // Réinitialiser les options
+            targetIdsSelect.empty();
+            
+            if (targetType) {
+                // Activer le champ
+                targetIdsSelect.prop('disabled', false);
+                
+                // Ajouter les options en fonction du type sélectionné
+                if (users[targetType] && users[targetType].length > 0) {
+                    users[targetType].forEach(function(user) {
+                        targetIdsSelect.append(new Option(user.name, user.id, false, false));
+                    });
+                } else {
+                    targetIdsSelect.append(new Option('Aucun utilisateur disponible', '', true, true));
+                }
+            } else {
+                // Désactiver le champ si aucun type n'est sélectionné
+                targetIdsSelect.prop('disabled', true);
+                targetIdsSelect.append(new Option('Sélectionnez d\'abord un type de destinataire', '', true, true));
+            }
+            
+            // Rafraîchir Select2
+            targetIdsSelect.trigger('change');
+        });
+    });
+    </script>
+</body>
+</html>

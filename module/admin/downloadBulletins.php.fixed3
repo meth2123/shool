@@ -1,0 +1,155 @@
+<?php
+// Démarrer la mise en tampon de sortie dès le début du script
+ob_start();
+
+include_once('main.php');
+include_once('../../service/db_utils.php');
+
+// Vérification des droits d'administrateur
+if (!isset($check) || !isset($login_session)) {
+    header("Location: ../../index.php?error=unauthorized");
+    exit();
+}
+
+$admin_id = $_SESSION['login_id'];
+$class_id = isset($_GET['class']) ? $_GET['class'] : '';
+$period = isset($_GET['period']) ? $_GET['period'] : '';
+
+// Validation des paramètres
+if (empty($class_id) || empty($period)) {
+    die("Paramètres manquants. Veuillez spécifier une classe et une période.");
+}
+
+// Vérifier que l'admin a accès à cette classe
+$class = db_fetch_row(
+    "SELECT * FROM class WHERE id = ? AND created_by = ?",
+    [$class_id, $admin_id],
+    'ss'
+);
+
+if (!$class) {
+    die("Accès non autorisé à cette classe.");
+}
+
+// Récupérer les étudiants de la classe
+$students = db_fetch_all(
+    "SELECT id, name FROM students WHERE classid = ? AND created_by = ? ORDER BY name",
+    [$class_id, $admin_id],
+    'ss'
+);
+
+if (empty($students)) {
+    die("Aucun étudiant trouvé dans cette classe.");
+}
+
+// Chemin du dossier contenant les bulletins
+$bulletins_dir = "../../bulletins/{$class_id}/{$period}";
+
+// Vérifier si le dossier existe
+if (!is_dir($bulletins_dir)) {
+    // Créer le dossier s'il n'existe pas
+    if (!mkdir($bulletins_dir, 0777, true)) {
+        die("Impossible de créer le dossier pour les bulletins. Vérifiez les permissions.");
+    }
+}
+
+// S'assurer que le dossier a les bonnes permissions
+chmod($bulletins_dir, 0777);
+
+// Nom du fichier ZIP (sans espaces ni caractères spéciaux)
+$class_name_safe = isset($class['name']) ? preg_replace('/[^a-zA-Z0-9_-]/', '_', $class['name']) : $class_id;
+$zip_filename = "bulletins_{$class_name_safe}_{$period}.zip";
+$zip_path = "{$bulletins_dir}/{$zip_filename}";
+
+// Vérifier si l'extension ZipArchive est disponible
+if (!class_exists('ZipArchive')) {
+    die("L'extension ZipArchive n'est pas disponible sur ce serveur.");
+}
+
+// Créer un nouvel objet ZipArchive
+$zip = new ZipArchive();
+
+// Ouvrir l'archive ZIP
+$result = $zip->open($zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+if ($result !== TRUE) {
+    die("Impossible de créer l'archive ZIP (code d'erreur: $result). Vérifiez les permissions du dossier.");
+}
+
+// Compteur de bulletins ajoutés à l'archive
+$bulletins_count = 0;
+
+// Ajouter chaque bulletin à l'archive
+foreach ($students as $student) {
+    $student_name = isset($student['name']) ? $student['name'] : $student['id'];
+    $student_name_safe = preg_replace('/[^a-zA-Z0-9_-]/', '_', $student_name);
+    $bulletin_filename = "bulletin_{$student['id']}_{$period}.txt"; // Utiliser .txt pour la simulation
+    $bulletin_path = "{$bulletins_dir}/{$bulletin_filename}";
+    
+    // Générer un fichier texte simulé pour chaque étudiant
+    $bulletin_content = "Bulletin de {$student_name} - Période {$period}\n";
+    $bulletin_content .= "Classe: " . (isset($class['name']) ? $class['name'] : $class_id) . "\n";
+    $bulletin_content .= "Date de génération: " . date('Y-m-d H:i:s') . "\n";
+    $bulletin_content .= "Ce fichier est une simulation de bulletin PDF.";
+    
+    // Écrire le contenu dans le fichier
+    if (file_put_contents($bulletin_path, $bulletin_content) === false) {
+        continue; // Passer à l'étudiant suivant si l'écriture échoue
+    }
+    
+    // Vérifier que le fichier a bien été créé
+    if (file_exists($bulletin_path)) {
+        // Ajouter le fichier à l'archive
+        if ($zip->addFile($bulletin_path, $bulletin_filename)) {
+            $bulletins_count++;
+        }
+    }
+}
+
+// Fermer l'archive ZIP
+if (!$zip->close()) {
+    die("Erreur lors de la fermeture de l'archive ZIP.");
+}
+
+// Vérifier si des bulletins ont été ajoutés et si le fichier ZIP existe
+if ($bulletins_count === 0 || !file_exists($zip_path)) {
+    die("Aucun bulletin n'a pu être ajouté à l'archive ou l'archive n'a pas pu être créée.");
+}
+
+// Vérifier la taille du fichier
+$filesize = filesize($zip_path);
+if ($filesize === false || $filesize === 0) {
+    die("Le fichier ZIP est vide ou inaccessible.");
+}
+
+// Nettoyer tout le contenu mis en tampon
+ob_end_clean();
+
+// Télécharger le fichier ZIP
+header('Content-Description: File Transfer');
+header('Content-Type: application/zip');
+header('Content-Disposition: attachment; filename="' . $zip_filename . '"');
+header('Content-Length: ' . $filesize);
+header('Content-Transfer-Encoding: binary');
+header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+header('Pragma: public');
+header('Expires: 0');
+
+// Lire et envoyer le fichier
+if (readfile($zip_path) === false) {
+    die("Erreur lors de la lecture du fichier ZIP.");
+}
+
+// Supprimer les fichiers temporaires
+foreach ($students as $student) {
+    $bulletin_filename = "bulletin_{$student['id']}_{$period}.txt";
+    $bulletin_path = "{$bulletins_dir}/{$bulletin_filename}";
+    if (file_exists($bulletin_path)) {
+        unlink($bulletin_path);
+    }
+}
+
+// Supprimer le fichier ZIP après le téléchargement
+unlink($zip_path);
+
+exit();
+?>

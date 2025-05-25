@@ -1,8 +1,9 @@
 <?php
 include_once('main.php');
+include_once('includes/auth_check.php');
 require_once('../../db/config.php');
 
-// Get admin ID for filtering
+// L'ID de l'administrateur est déjà défini dans auth_check.php
 $admin_id = $_SESSION['login_id'];
 
 // Initialize database connection

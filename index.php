@@ -47,188 +47,190 @@ if(isset($_GET['error'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SchoolManager - Système de Gestion Scolaire</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .hero-section {
+            padding: 4rem 0;
+            background-color: #f8f9fa;
+        }
+        .feature-card {
+            height: 100%;
+            transition: transform 0.3s;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        .pricing-card {
+            height: 100%;
+            transition: transform 0.3s;
+        }
+        .pricing-card:hover {
+            transform: translateY(-5px);
+        }
+        .btn-primary {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+        }
+        .btn-success {
+            background-color: #198754;
+            border-color: #198754;
+        }
+    </style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-light">
     <!-- Navigation -->
-    <nav class="bg-white shadow-lg">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex items-center">
-                    <img src="source/logo.jpg" class="h-8 w-8 object-contain" alt="Logo"/>
-                    <span class="ml-2 text-xl font-bold text-gray-900">SchoolManager</span>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <a href="#features" class="text-gray-600 hover:text-gray-900">Fonctionnalités</a>
-                    <a href="#pricing" class="text-gray-600 hover:text-gray-900">Tarifs</a>
-                    <a href="login.php" class="text-blue-600 hover:text-blue-700">Se connecter</a>
-                    <a href="module/subscription/register.php" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
-                        S'abonner
-                    </a>
-                </div>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <img src="source/logo.jpg" class="me-2" width="40" height="40" alt="Logo"/>
+                <span class="fw-bold">SchoolManager</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#features">Fonctionnalités</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#pricing">Tarifs</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="documentation/index.php">Documentation</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-primary" href="login.php">Se connecter</a>
+                    </li>
+                    <li class="nav-item ms-lg-2">
+                        <a class="btn btn-success" href="module/subscription/register.php">S'abonner</a>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>
 
     <!-- Hero Section -->
-    <div class="bg-white">
-        <div class="max-w-7xl mx-auto py-16 px-4 sm:py-24 sm:px-6 lg:px-8">
-            <div class="text-center">
-                <h1 class="text-4xl font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight lg:text-6xl">
-                    Gérez votre établissement scolaire en toute simplicité
-                </h1>
-                <p class="mt-6 max-w-2xl mx-auto text-xl text-gray-500">
-                    SchoolManager est une solution complète pour la gestion administrative et pédagogique de votre établissement scolaire.
-                </p>
-                <div class="mt-10 flex justify-center space-x-4">
-                    <a href="login.php" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                        <i class="fas fa-sign-in-alt mr-2"></i>
-                        Se connecter
-                    </a>
-                    <a href="module/subscription/register.php" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
-                        <i class="fas fa-crown mr-2"></i>
-                        S'abonner maintenant
-                    </a>
+    <section class="hero-section py-5">
+        <div class="container">
+            <div class="row justify-content-center text-center">
+                <div class="col-lg-10">
+                    <h1 class="display-4 fw-bold mb-4">Gérez votre établissement scolaire en toute simplicité</h1>
+                    <p class="lead mb-5">SchoolManager est une solution complète pour la gestion administrative et pédagogique de votre établissement scolaire.</p>
+                    <div class="d-flex flex-column flex-sm-row justify-content-center gap-3">
+                        <a href="login.php" class="btn btn-primary btn-lg">
+                            <i class="fas fa-sign-in-alt me-2"></i>Se connecter
+                        </a>
+                        <a href="module/subscription/register.php" class="btn btn-success btn-lg">
+                            <i class="fas fa-crown me-2"></i>S'abonner maintenant
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 
     <!-- Features Section -->
-    <div id="features" class="py-12 bg-gray-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="text-center">
-                <h2 class="text-3xl font-extrabold text-gray-900">
-                    Fonctionnalités principales
-                </h2>
-                <p class="mt-4 text-lg text-gray-500">
-                    Tout ce dont vous avez besoin pour gérer efficacement votre établissement
-                </p>
+    <section id="features" class="py-5 bg-white">
+        <div class="container">
+            <div class="row text-center mb-5">
+                <div class="col-lg-8 mx-auto">
+                    <h2 class="fw-bold mb-3">Fonctionnalités principales</h2>
+                    <p class="lead text-muted">Tout ce dont vous avez besoin pour gérer efficacement votre établissement</p>
+                </div>
             </div>
-
-            <div class="mt-10">
-                <div class="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                    <!-- Gestion des étudiants -->
-                    <div class="bg-white overflow-hidden shadow rounded-lg">
-                        <div class="p-6">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0 bg-blue-500 rounded-md p-3">
-                                    <i class="fas fa-user-graduate text-white text-2xl"></i>
+            <div class="row g-4">
+                <!-- Gestion des étudiants -->
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 feature-card shadow-sm">
+                        <div class="card-body p-4">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="bg-primary p-3 rounded-3 me-3 text-white">
+                                    <i class="fas fa-user-graduate"></i>
                                 </div>
-                                <div class="ml-4">
-                                    <h3 class="text-lg font-medium text-gray-900">Gestion des étudiants</h3>
-                                </div>
+                                <h5 class="card-title mb-0">Gestion des étudiants</h5>
                             </div>
-                            <p class="mt-4 text-gray-500">
-                                Inscription, suivi des notes, gestion des absences et bien plus encore.
-                            </p>
+                            <p class="card-text text-muted">Inscription, suivi des notes, gestion des absences et bien plus encore.</p>
                         </div>
                     </div>
-
-                    <!-- Gestion des enseignants -->
-                    <div class="bg-white overflow-hidden shadow rounded-lg">
-                        <div class="p-6">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0 bg-green-500 rounded-md p-3">
-                                    <i class="fas fa-chalkboard-teacher text-white text-2xl"></i>
+                </div>
+                
+                <!-- Gestion des enseignants -->
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 feature-card shadow-sm">
+                        <div class="card-body p-4">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="bg-success p-3 rounded-3 me-3 text-white">
+                                    <i class="fas fa-chalkboard-teacher"></i>
                                 </div>
-                                <div class="ml-4">
-                                    <h3 class="text-lg font-medium text-gray-900">Gestion des enseignants</h3>
-                                </div>
+                                <h5 class="card-title mb-0">Gestion des enseignants</h5>
                             </div>
-                            <p class="mt-4 text-gray-500">
-                                Planning des cours, gestion des emplois du temps, suivi des performances.
-                            </p>
+                            <p class="card-text text-muted">Planning des cours, gestion des emplois du temps, suivi des performances.</p>
                         </div>
                     </div>
-
-                    <!-- Gestion financière -->
-                    <div class="bg-white overflow-hidden shadow rounded-lg">
-                        <div class="p-6">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0 bg-yellow-500 rounded-md p-3">
-                                    <i class="fas fa-money-bill-wave text-white text-2xl"></i>
+                </div>
+                
+                <!-- Gestion financière -->
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 feature-card shadow-sm">
+                        <div class="card-body p-4">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="bg-info p-3 rounded-3 me-3 text-white">
+                                    <i class="fas fa-money-bill-wave"></i>
                                 </div>
-                                <div class="ml-4">
-                                    <h3 class="text-lg font-medium text-gray-900">Gestion financière</h3>
-                                </div>
+                                <h5 class="card-title mb-0">Gestion financière</h5>
                             </div>
-                            <p class="mt-4 text-gray-500">
-                                Suivi des paiements, gestion des frais de scolarité, rapports financiers.
-                            </p>
+                            <p class="card-text text-muted">Suivi des paiements, gestion des frais de scolarité, rapports financiers.</p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 
     <!-- Pricing Section -->
-    <div id="pricing" class="bg-white py-12">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="text-center">
-                <h2 class="text-3xl font-extrabold text-gray-900">
-                    Tarifs simples et transparents
-                </h2>
-                <p class="mt-4 text-lg text-gray-500">
-                    Un seul forfait pour tous les établissements
-                </p>
+    <section id="pricing" class="py-5 bg-light">
+        <div class="container">
+            <div class="row text-center mb-5">
+                <div class="col-lg-8 mx-auto">
+                    <h2 class="fw-bold mb-3">Tarifs simples et transparents</h2>
+                    <p class="lead text-muted">Un seul forfait pour tous les établissements</p>
+                </div>
             </div>
-
-            <div class="mt-10 max-w-lg mx-auto">
-                <div class="bg-white overflow-hidden shadow rounded-lg">
-                    <div class="px-6 py-8 sm:p-10">
-                        <div class="text-center">
-                            <h3 class="text-2xl font-extrabold text-gray-900">
-                                Forfait Standard
-                            </h3>
-                            <p class="mt-4 text-gray-500">
-                                Accès à toutes les fonctionnalités
-                            </p>
-                            <div class="mt-6">
-                                <span class="text-4xl font-extrabold text-gray-900">15 000 FCFA</span>
-                                <span class="text-base font-medium text-gray-500">/mois</span>
+            
+            <div class="row justify-content-center">
+                <div class="col-md-8 col-lg-6 col-xl-5">
+                    <div class="card pricing-card shadow">
+                        <div class="card-body p-5 text-center">
+                            <h3 class="card-title fw-bold mb-3">Forfait Standard</h3>
+                            <p class="text-muted mb-4">Accès à toutes les fonctionnalités</p>
+                            
+                            <div class="mb-4">
+                                <span class="display-5 fw-bold">15 000 FCFA</span>
+                                <span class="text-muted">/mois</span>
                             </div>
-                        </div>
-                        <div class="mt-8">
-                            <ul class="space-y-4">
-                                <li class="flex items-start">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-check text-green-500"></i>
-                                    </div>
-                                    <p class="ml-3 text-base text-gray-500">
-                                        Gestion complète des étudiants et enseignants
-                                    </p>
+                            
+                            <ul class="list-unstyled text-start mb-4">
+                                <li class="mb-3 d-flex align-items-center">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    <span>Gestion complète des étudiants et enseignants</span>
                                 </li>
-                                <li class="flex items-start">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-check text-green-500"></i>
-                                    </div>
-                                    <p class="ml-3 text-base text-gray-500">
-                                        Suivi des notes et des absences
-                                    </p>
+                                <li class="mb-3 d-flex align-items-center">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    <span>Suivi des notes et des absences</span>
                                 </li>
-                                <li class="flex items-start">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-check text-green-500"></i>
-                                    </div>
-                                    <p class="ml-3 text-base text-gray-500">
-                                        Gestion financière et rapports
-                                    </p>
+                                <li class="mb-3 d-flex align-items-center">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    <span>Gestion financière et rapports</span>
                                 </li>
-                                <li class="flex items-start">
-                                    <div class="flex-shrink-0">
-                                        <i class="fas fa-check text-green-500"></i>
-                                    </div>
-                                    <p class="ml-3 text-base text-gray-500">
-                                        Support technique 24/7
-                                    </p>
+                                <li class="mb-3 d-flex align-items-center">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    <span>Support technique 24/7</span>
                                 </li>
                             </ul>
-                        </div>
-                        <div class="mt-8">
-                            <a href="module/subscription/register.php" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700">
+                            
+                            <a href="module/subscription/register.php" class="btn btn-success btn-lg w-100">
                                 S'abonner maintenant
                             </a>
                         </div>
@@ -236,17 +238,50 @@ if(isset($_GET['error'])) {
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 
     <!-- Footer -->
-    <footer class="bg-gray-800">
-        <div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-            <div class="text-center">
-                <p class="text-base text-gray-400">
-                    &copy; <?php echo date('Y'); ?> SchoolManager. Tous droits réservés.
-                </p>
+    <footer class="bg-dark text-white py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4 mb-4 mb-md-0">
+                    <h5 class="mb-3">SchoolManager</h5>
+                    <p class="small">Solution complète pour la gestion administrative et pédagogique de votre établissement scolaire.</p>
+                </div>
+                <div class="col-md-4 mb-4 mb-md-0">
+                    <h5 class="mb-3">Liens rapides</h5>
+                    <ul class="list-unstyled small">
+                        <li class="mb-2"><a href="login.php" class="text-white text-decoration-none">Se connecter</a></li>
+                        <li class="mb-2"><a href="module/subscription/register.php" class="text-white text-decoration-none">S'abonner</a></li>
+                        <li class="mb-2"><a href="documentation/index.php" class="text-white text-decoration-none">Documentation</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-4">
+                    <h5 class="mb-3">Contact</h5>
+                    <ul class="list-unstyled small">
+                        <li class="mb-2"><i class="fas fa-envelope me-2"></i>contact@schoolmanager.com</li>
+                        <li class="mb-2"><i class="fas fa-phone me-2"></i>+221 77 807 25 70</li>
+                        <li class="mb-2"><i class="fas fa-map-marker-alt me-2"></i>Senegal, Dakar</li>
+                    </ul>
+                </div>
+            </div>
+            <hr class="my-4">
+            <div class="row align-items-center">
+                <div class="col-md-6 text-center text-md-start">
+                    <p class="small mb-md-0">&copy; <?php echo date('Y'); ?> SchoolManager. Tous droits réservés.</p>
+                </div>
+                <div class="col-md-6 text-center text-md-end">
+                    <div class="d-inline-flex">
+                        <a href="#" class="text-white me-3"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" class="text-white me-3"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="text-white"><i class="fab fa-instagram"></i></a>
+                    </div>
+                </div>
             </div>
         </div>
     </footer>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -15,12 +15,28 @@ class PayDunyaSDK {
     ];
 
     public function __construct($config) {
-        $this->master_key = $config['master_key'];
-        $this->public_key = $config['public_key'];
-        $this->private_key = $config['private_key'];
-        $this->token = $config['token'];
-        $this->mode = $config['mode'];
-        $this->store = $config['store'];
+        // Vérifier que toutes les clés requises sont présentes
+        $required_keys = ['api_keys', 'mode', 'store'];
+        foreach ($required_keys as $key) {
+            if (!isset($config[$key])) {
+                throw new Exception("Clé de configuration manquante : $key");
+            }
+        }
+
+        // Vérifier les clés API requises
+        $required_api_keys = ['master_key', 'public_key', 'private_key', 'token'];
+        foreach ($required_api_keys as $key) {
+            if (!isset($config['api_keys'][$key])) {
+                throw new Exception("Clé API manquante : $key");
+            }
+        }
+
+        $this->master_key = $config['api_keys']['master_key'] ?? '';
+        $this->public_key = $config['api_keys']['public_key'] ?? '';
+        $this->private_key = $config['api_keys']['private_key'] ?? '';
+        $this->token = $config['api_keys']['token'] ?? '';
+        $this->mode = $config['mode'] ?? 'live';
+        $this->store = $config['store'] ?? [];
         
         // URL de base toujours la même en production
         $this->base_url = 'https://app.paydunya.com/api/v1';
@@ -28,10 +44,10 @@ class PayDunyaSDK {
         error_log("PayDunya SDK initialisé - Mode: " . strtoupper($this->mode));
         error_log("URL de base: " . $this->base_url);
         error_log("Clés API configurées :");
-        error_log("Master Key: " . substr($this->master_key, 0, 5) . '...');
-        error_log("Public Key: " . substr($this->public_key, 0, 5) . '...');
-        error_log("Private Key: " . substr($this->private_key, 0, 5) . '...');
-        error_log("Token: " . substr($this->token, 0, 5) . '...');
+        error_log("Master Key: " . (is_string($this->master_key) ? substr($this->master_key, 0, 5) . '...' : 'non définie'));
+        error_log("Public Key: " . (is_string($this->public_key) ? substr($this->public_key, 0, 5) . '...' : 'non définie'));
+        error_log("Private Key: " . (is_string($this->private_key) ? substr($this->private_key, 0, 5) . '...' : 'non définie'));
+        error_log("Token: " . (is_string($this->token) ? substr($this->token, 0, 5) . '...' : 'non défini'));
     }
 
     public function createInvoice($data) {
@@ -39,13 +55,18 @@ class PayDunyaSDK {
         error_log("Tentative de création de facture - Endpoint: " . $endpoint);
         
         // Vérifier que les URLs ne sont pas en localhost
-        if (strpos($this->store['website_url'], 'localhost') !== false) {
+        $website_url = $this->store['website_url'] ?? '';
+        $callback_url = $this->store['callback_url'] ?? '';
+        $cancel_url = $this->store['cancel_url'] ?? '';
+        $return_url = $this->store['return_url'] ?? '';
+
+        if (is_string($website_url) && strpos($website_url, 'localhost') !== false) {
             throw new Exception("L'URL du site web ne peut pas être en localhost. Utilisez une URL publique (ex: ngrok)");
         }
         
-        if (strpos($this->store['callback_url'], 'localhost') !== false ||
-            strpos($this->store['cancel_url'], 'localhost') !== false ||
-            strpos($this->store['return_url'], 'localhost') !== false) {
+        if ((is_string($callback_url) && strpos($callback_url, 'localhost') !== false) ||
+            (is_string($cancel_url) && strpos($cancel_url, 'localhost') !== false) ||
+            (is_string($return_url) && strpos($return_url, 'localhost') !== false)) {
             throw new Exception("Les URLs de callback ne peuvent pas être en localhost. Utilisez des URLs publiques (ex: ngrok)");
         }
 
@@ -126,10 +147,10 @@ class PayDunyaSDK {
         
         // Formatage des en-têtes selon la documentation PayDunya
         $headers = [
-            'PAYDUNYA-MASTER-KEY: ' . trim($this->master_key),
-            'PAYDUNYA-PUBLIC-KEY: ' . trim($this->public_key),
-            'PAYDUNYA-PRIVATE-KEY: ' . trim($this->private_key),
-            'PAYDUNYA-TOKEN: ' . trim($this->token),
+            'PAYDUNYA-MASTER-KEY: ' . (is_string($this->master_key) ? trim($this->master_key) : ''),
+            'PAYDUNYA-PUBLIC-KEY: ' . (is_string($this->public_key) ? trim($this->public_key) : ''),
+            'PAYDUNYA-PRIVATE-KEY: ' . (is_string($this->private_key) ? trim($this->private_key) : ''),
+            'PAYDUNYA-TOKEN: ' . (is_string($this->token) ? trim($this->token) : ''),
             'Content-Type: application/json',
             'Accept: application/json'
         ];

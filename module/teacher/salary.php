@@ -8,7 +8,9 @@ if (!isset($_SESSION['login_id'])) {
     exit();
 }
 
-$teacher_id = $_SESSION['login_id'];
+// Définir la variable check pour le template layout.php
+$check = $_SESSION['login_id'];
+$teacher_id = $check;
 
 // Récupérer les informations du professeur
 $teacher_query = "SELECT * FROM teachers WHERE id = ?";
@@ -54,145 +56,108 @@ function formatMonth($month) {
     return $month_names[$month] ?? 'Mois inconnu';
 }
 
-?>
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion des Salaires - Système de Gestion Scolaire</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-</head>
-<body class="bg-gray-100 min-h-screen">
-    <!-- Header -->
-    <nav class="bg-white shadow-lg">
-        <div class="max-w-7xl mx-auto px-4">
-            <div class="flex justify-between items-center py-4">
-                <div class="flex items-center">
-                    <img src="../../source/logo.jpg" class="h-12 w-12 object-contain" alt="School Management System"/>
-                    <h1 class="ml-4 text-xl font-semibold text-gray-800">Gestion des Salaires</h1>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <a href="index.php" class="text-gray-600 hover:text-gray-800">
-                        <i class="fas fa-home mr-2"></i>Accueil
-                    </a>
-                    <a href="logout.php" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out">
-                        <i class="fas fa-sign-out-alt mr-2"></i>Déconnexion
-                    </a>
-                </div>
+// Préparation du contenu pour le template
+$content = '';
+$content .= '<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">Informations du Professeur</h5>
             </div>
-        </div>
-    </nav>
-
-    <!-- Contenu principal -->
-    <div class="max-w-7xl mx-auto px-4 py-8">
-        <!-- Informations du professeur -->
-        <div class="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 class="text-lg font-semibold text-gray-800 mb-4">Informations du Professeur</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div class="bg-blue-50 p-4 rounded-lg">
-                    <h3 class="text-sm font-medium text-blue-800">Salaire de Base</h3>
-                    <p class="text-2xl font-bold text-blue-900">
-                        <?php 
-                        $base_salary = $teacher['salary'] ?? 0;
-                        echo number_format((float)$base_salary, 2); 
-                        ?> €
-                    </p>
-                </div>
-                <div class="bg-green-50 p-4 rounded-lg">
-                    <h3 class="text-sm font-medium text-green-800">Total des Paiements</h3>
-                    <p class="text-2xl font-bold text-green-900">
-                        <?php 
-                        echo number_format((float)$total_paid, 2); 
-                        ?> €
-                    </p>
-                </div>
-                <div class="bg-purple-50 p-4 rounded-lg">
-                    <h3 class="text-sm font-medium text-purple-800">Mois en Cours</h3>
-                    <p class="text-2xl font-bold text-purple-900">
-                        <?php 
-                        if ($current_month_data && isset($current_month_data['final_salary'])) {
-                            echo number_format((float)$current_month_data['final_salary'], 2) . ' €';
-                        } else {
-                            echo 'Non calculé';
-                        }
-                        ?>
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Historique des salaires -->
-        <div class="bg-white rounded-lg shadow overflow-hidden">
-            <div class="p-6">
-                <h2 class="text-lg font-semibold text-gray-800 mb-4">Historique des Salaires</h2>
-                <?php if (!empty($salary_data)): ?>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mois/Année</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salaire de Base</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jours Présents</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jours Absents</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salaire Final</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                                <?php foreach ($salary_data as $salary): ?>
-                                    <tr>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            <?php 
-                                            echo formatMonth($salary['month']) . ' ' . $salary['year']; 
-                                            ?>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            <?php echo number_format((float)$salary['base_salary'], 2); ?> €
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            <?php echo $salary['days_present']; ?> jours
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            <?php echo $salary['days_absent']; ?> jours
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            <?php echo number_format((float)$salary['final_salary'], 2); ?> €
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                            <?php 
-                                            if ($salary['payment_date']) {
-                                                echo '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">';
-                                                echo 'Payé le ' . date('d/m/Y', strtotime($salary['payment_date']));
-                                                echo '</span>';
-                                            } else {
-                                                echo '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">Non payé</span>';
-                                            }
-                                            ?>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="p-4 rounded bg-primary bg-opacity-10 h-100">
+                            <h6 class="text-primary mb-2">Salaire de Base</h6>
+                            <p class="display-6 fw-bold mb-0">';
+                                $base_salary = $teacher["salary"] ?? 0;
+                                $content .= number_format((float)$base_salary, 2, ",", " ") . ' €';
+                            $content .= '</p>
+                        </div>
                     </div>
-                <?php else: ?>
-                    <div class="text-center py-4">
-                        <p class="text-gray-500">Aucun historique de salaire trouvé.</p>
+                    <div class="col-md-4">
+                        <div class="p-4 rounded bg-success bg-opacity-10 h-100">
+                            <h6 class="text-success mb-2">Total des Paiements</h6>
+                            <p class="display-6 fw-bold mb-0">';
+                                $content .= number_format((float)$total_paid, 2, ",", " ") . ' €';
+                            $content .= '</p>
+                        </div>
                     </div>
-                <?php endif; ?>
+                    <div class="col-md-4">
+                        <div class="p-4 rounded bg-info bg-opacity-10 h-100">
+                            <h6 class="text-info mb-2">Mois en Cours</h6>
+                            <p class="display-6 fw-bold mb-0">';
+                                if ($current_month_data && isset($current_month_data["final_salary"])) {
+                                    $content .= number_format((float)$current_month_data["final_salary"], 2, ",", " ") . ' €';
+                                } else {
+                                    $content .= '<span class="text-muted fs-5">Non calculé</span>';
+                                }
+                            $content .= '</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Footer -->
-    <footer class="bg-white shadow-lg mt-8">
-        <div class="max-w-7xl mx-auto py-4 px-4">
-            <p class="text-center text-gray-500 text-sm">
-                © <?php echo date('Y'); ?> Système de Gestion Scolaire. Tous droits réservés.
-            </p>
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Historique des Salaires</h5>
+                <span class="badge bg-primary rounded-pill">' . count($salary_data) . ' entrées</span>
+            </div>
+            <div class="card-body">';
+
+if (!empty($salary_data)) {
+    $content .= '<div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Mois/Année</th>
+                    <th>Salaire de Base</th>
+                    <th>Jours Présents</th>
+                    <th>Jours Absents</th>
+                    <th>Salaire Final</th>
+                    <th>Statut</th>
+                </tr>
+            </thead>
+            <tbody>';
+    
+    foreach ($salary_data as $salary) {
+        $content .= '<tr>
+            <td>' . formatMonth($salary["month"]) . ' ' . $salary["year"] . '</td>
+            <td>' . number_format((float)$salary["base_salary"], 2, ",", " ") . ' €</td>
+            <td>' . $salary["days_present"] . ' jours</td>
+            <td>' . $salary["days_absent"] . ' jours</td>
+            <td class="fw-bold">' . number_format((float)$salary["final_salary"], 2, ",", " ") . ' €</td>
+            <td>';
+        
+        if ($salary["payment_date"]) {
+            $content .= '<span class="badge bg-success">Payé le ' . date("d/m/Y", strtotime($salary["payment_date"])) . '</span>';
+        } else {
+            $content .= '<span class="badge bg-danger">Non payé</span>';
+        }
+        
+        $content .= '</td>
+        </tr>';
+    }
+    
+    $content .= '</tbody>
+        </table>
+    </div>';
+} else {
+    $content .= '<div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>Aucun historique de salaire trouvé.
+    </div>';
+}
+
+$content .= '</div>
         </div>
-    </footer>
-</body>
-</html>
+    </div>
+</div>';
+
+// Inclure le template
+include("templates/layout.php");
 

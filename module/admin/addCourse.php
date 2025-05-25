@@ -29,28 +29,31 @@ $teacher_stmt->execute();
 $teacher_result = $teacher_stmt->get_result();
 
 $content = '
-<div class="container mx-auto px-4 py-8">
-    <div class="max-w-2xl mx-auto">
-        <div class="mb-6">
-            <h2 class="text-2xl font-bold text-gray-900">Ajouter un Cours</h2>
-            <p class="mt-1 text-sm text-gray-600">Créez un nouveau cours en remplissant les informations ci-dessous.</p>
-        </div>
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-8">
+            <div class="mb-4">
+                <h2>Ajouter un Cours</h2>
+                <p class="text-muted">Créez un nouveau cours en remplissant les informations ci-dessous.</p>
+            </div>
 
-        <div class="bg-white shadow rounded-lg p-6">
-            <form action="includes/process_course.php" method="POST" class="space-y-6">
-                <input type="hidden" name="action" value="add">
-                <input type="hidden" name="created_by" value="' . htmlspecialchars($admin_id) . '">
-                
-                <div>
-                    <label for="name" class="block text-sm font-medium text-gray-700">Nom du cours</label>
-                    <input type="text" name="name" id="name" required
-                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="card-title mb-0">Informations du cours</h5>
                 </div>
+                <div class="card-body">
+                    <form action="includes/process_course.php" method="POST">
+                        <input type="hidden" name="action" value="add">
+                        <input type="hidden" name="created_by" value="' . htmlspecialchars($admin_id) . '">
+                        
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Nom du cours</label>
+                            <input type="text" name="name" id="name" required class="form-control">
+                        </div>
 
-                <div>
-                    <label for="classid" class="block text-sm font-medium text-gray-700">Classe</label>
-                    <select name="classid" id="classid" required
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">';
+                        <div class="mb-3">
+                            <label for="classid" class="form-label">Classe</label>
+                            <select name="classid" id="classid" required class="form-select">';
                     
                     while ($class = $class_result->fetch_assoc()) {
                         $content .= '<option value="' . htmlspecialchars($class['id']) . '">' . 
@@ -58,13 +61,12 @@ $content = '
                     }
 
 $content .= '
-                    </select>
-                </div>
+                            </select>
+                        </div>
 
-                <div>
-                    <label for="teacherid" class="block text-sm font-medium text-gray-700">Enseignant</label>
-                    <select name="teacherid" id="teacherid" required
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">';
+                        <div class="mb-3">
+                            <label for="teacherid" class="form-label">Enseignant</label>
+                            <select name="teacherid" id="teacherid" required class="form-select">';
                     
                     while ($teacher = $teacher_result->fetch_assoc()) {
                         $content .= '<option value="' . htmlspecialchars($teacher['id']) . '">' . 
@@ -72,20 +74,20 @@ $content .= '
                     }
 
 $content .= '
-                    </select>
-                </div>
+                            </select>
+                        </div>
 
-                <div class="flex justify-end space-x-3">
-                    <a href="course.php" 
-                       class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                        Annuler
-                    </a>
-                    <button type="submit"
-                            class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                        Ajouter le cours
-                    </button>
+                        <div class="d-flex justify-content-end gap-2 mt-4">
+                            <a href="course.php" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-2"></i>Annuler
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-plus-circle me-2"></i>Ajouter le cours
+                            </button>
+                        </div>
+                    </form>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>';

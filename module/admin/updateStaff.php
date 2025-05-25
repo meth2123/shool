@@ -93,87 +93,94 @@ if (!$staff) {
 }
 
 $content = '
-<div class="container mx-auto px-4 py-8">
-    <div class="max-w-4xl mx-auto">
-        <div class="mb-6 flex justify-between items-center">
-            <h2 class="text-2xl font-bold text-gray-900">Modifier le Personnel</h2>
-            <a href="viewStaff.php?id=' . htmlspecialchars($staff_id) . '" class="text-blue-600 hover:text-blue-800">
-                <i class="fas fa-arrow-left mr-2"></i>Retour aux détails
-            </a>
-        </div>
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-8">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">Modifier le Personnel</h2>
+                <a href="viewStaff.php?id=' . htmlspecialchars($staff_id) . '" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-2"></i>Retour aux détails
+                </a>
+            </div>
 
-        ' . (isset($error) ? '<div class="mb-4 p-4 text-red-700 bg-red-100 rounded-md">' . htmlspecialchars($error) . '</div>' : '') . '
+            ' . (isset($error) ? '<div class="alert alert-danger mb-4">' . htmlspecialchars($error) . '</div>' : '') . '
 
-        <div class="bg-white shadow-lg rounded-lg overflow-hidden">
-            <form method="POST" class="p-6 space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label for="name" class="block text-sm font-medium text-gray-700">Nom</label>
-                        <input type="text" name="name" id="name" required
-                               value="' . htmlspecialchars($staff['name']) . '"
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="card-title mb-0">Informations Personnelles</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="row g-3">
+                            <div class="col-md-6 mb-3">
+                                <label for="name" class="form-label">Nom</label>
+                                <input type="text" name="name" id="name" required
+                                       value="' . htmlspecialchars($staff['name']) . '"
+                                       class="form-control">
+                            </div>
 
-                    <div>
-                        <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
-                        <input type="email" name="email" id="email" required
-                               value="' . htmlspecialchars($staff['email']) . '"
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" name="email" id="email" required
+                                       value="' . htmlspecialchars($staff['email']) . '"
+                                       class="form-control">
+                            </div>
 
-                    <div>
-                        <label for="phone" class="block text-sm font-medium text-gray-700">Téléphone</label>
-                        <input type="tel" name="phone" id="phone" required
-                               value="' . htmlspecialchars($staff['phone']) . '"
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="phone" class="form-label">Téléphone</label>
+                                <input type="tel" name="phone" id="phone" required
+                                       value="' . htmlspecialchars($staff['phone']) . '"
+                                       class="form-control">
+                            </div>
 
-                    <div>
-                        <label for="address" class="block text-sm font-medium text-gray-700">Adresse</label>
-                        <input type="text" name="address" id="address" required
-                               value="' . htmlspecialchars($staff['address']) . '"
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="address" class="form-label">Adresse</label>
+                                <input type="text" name="address" id="address" required
+                                       value="' . htmlspecialchars($staff['address']) . '"
+                                       class="form-control">
+                            </div>
 
-                    <div>
-                        <label for="sex" class="block text-sm font-medium text-gray-700">Genre</label>
-                        <select name="sex" id="sex" required
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <option value="M" ' . ($staff['sex'] === 'M' ? 'selected' : '') . '>Masculin</option>
-                            <option value="F" ' . ($staff['sex'] === 'F' ? 'selected' : '') . '>Féminin</option>
-                        </select>
-                    </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="sex" class="form-label">Genre</label>
+                                <select name="sex" id="sex" required class="form-select">
+                                    <option value="M" ' . ($staff['sex'] === 'M' ? 'selected' : '') . '>Masculin</option>
+                                    <option value="F" ' . ($staff['sex'] === 'F' ? 'selected' : '') . '>Féminin</option>
+                                </select>
+                            </div>
 
-                    <div>
-                        <label for="dob" class="block text-sm font-medium text-gray-700">Date de naissance</label>
-                        <input type="date" name="dob" id="dob" required
-                               value="' . htmlspecialchars($staff['dob']) . '"
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="dob" class="form-label">Date de naissance</label>
+                                <input type="date" name="dob" id="dob" required
+                                       value="' . htmlspecialchars($staff['dob']) . '"
+                                       class="form-control">
+                            </div>
 
-                    <div>
-                        <label for="salary" class="block text-sm font-medium text-gray-700">Salaire</label>
-                        <input type="number" name="salary" id="salary" required step="0.01"
-                               value="' . htmlspecialchars($staff['salary']) . '"
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="salary" class="form-label">Salaire</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-euro-sign"></i></span>
+                                    <input type="number" name="salary" id="salary" required step="0.01"
+                                           value="' . htmlspecialchars($staff['salary']) . '"
+                                           class="form-control">
+                                </div>
+                            </div>
 
-                    <div>
-                        <label for="password" class="block text-sm font-medium text-gray-700">
-                            Nouveau mot de passe (laisser vide pour ne pas changer)
-                        </label>
-                        <input type="password" name="password" id="password"
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
-				</div>
+                            <div class="col-md-6 mb-3">
+                                <label for="password" class="form-label">
+                                    Nouveau mot de passe (laisser vide pour ne pas changer)
+                                </label>
+                                <input type="password" name="password" id="password" class="form-control">
+                            </div>
+                        </div>
 
-                <div class="mt-6 flex justify-end">
-                    <button type="submit"
-                            class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                        Enregistrer les modifications
-                    </button>
-						</div>
-            </form>
+                        <div class="d-flex justify-content-end mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Enregistrer les modifications
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 </div>';

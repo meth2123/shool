@@ -1,0 +1,505 @@
+<?php
+include_once('main.php');
+include_once('../../service/db_utils.php');
+
+// Vérification de la session admin
+if (!isset($check) || !isset($login_session)) {
+    header("Location: ../../index.php?error=unauthorized");
+    exit();
+}
+
+$admin_id = $_SESSION['login_id'];
+
+// Récupération des classes de l'admin
+$classes = db_fetch_all(
+    "SELECT * FROM class WHERE created_by = ? ORDER BY name",
+    [$admin_id],
+    's'
+);
+
+// Initialisation des variables
+$selected_class = isset($_GET['class']) ? $_GET['class'] : '';
+$selected_course = isset($_GET['course']) ? $_GET['course'] : '';
+$selected_teacher = isset($_GET['teacher']) ? $_GET['teacher'] : '';
+$selected_semester = isset($_GET['semester']) ? $_GET['semester'] : '1';
+$error_message = '';
+$success_message = '';
+
+// Validation de la classe sélectionnée
+$class_check = false;
+$class_courses = [];
+if ($selected_class) {
+    foreach ($classes as $class) {
+        if ($class['id'] === $selected_class) {
+            $class_check = true;
+            break;
+        }
+    }
+    
+    if ($class_check) {
+        // Utilisation de CAST pour assurer la même collation lors des comparaisons
+        $class_courses = db_fetch_all(
+            "SELECT DISTINCT c.* 
+             FROM course c 
+             INNER JOIN student_teacher_course stc ON c.id = stc.course_id 
+             INNER JOIN students s ON CAST(stc.student_id AS CHAR) = CAST(s.id AS CHAR)
+             WHERE CAST(stc.class_id AS CHAR) = ? 
+             AND s.created_by = ?
+             ORDER BY c.name",
+            [$selected_class, $admin_id],
+            'ss'
+        );
+    } else {
+        $error_message = "Vous n'avez pas accès à cette classe.";
+        $selected_class = '';
+    }
+}
+
+// Récupération des enseignants pour la classe et le cours sélectionnés
+$teachers = [];
+if ($selected_class && $selected_course) {
+    // Utilisation de CAST pour assurer la même collation
+    $teachers = db_fetch_all(
+        "SELECT DISTINCT t.* 
+         FROM teachers t 
+         INNER JOIN student_teacher_course stc ON CAST(t.id AS CHAR) = CAST(stc.teacher_id AS CHAR)
+         WHERE CAST(stc.class_id AS CHAR) = ? 
+         AND CAST(stc.course_id AS CHAR) = ?
+         ORDER BY t.name",
+        [$selected_class, $selected_course],
+        'ss'
+    );
+}
+
+// Traitement du formulaire de notes
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_grades'])) {
+    try {
+        foreach ($_POST['grades'] as $student_id => $grades) {
+            foreach ($grades as $type => $grade) {
+                if (is_numeric($grade)) {
+                    // Déterminer le type et le numéro de la note
+                    $grade_type = '';
+                    $grade_number = 0;
+                    
+                    if (strpos($type, 'devoir') === 0) {
+                        $grade_type = 'devoir';
+                        $grade_number = substr($type, 6);
+                    } elseif ($type === 'examen') {
+                        $grade_type = 'examen';
+                        $grade_number = 1;
+                    }
+                    
+                    if ($grade_type) {
+                        // Vérifier si la note existe déjà
+                        // Utilisation de CAST pour assurer la même collation
+                        $existing_grade = db_fetch_row(
+                            "SELECT * FROM student_teacher_course 
+                             WHERE CAST(student_id AS CHAR) = ? 
+                             AND CAST(teacher_id AS CHAR) = ? 
+                             AND CAST(class_id AS CHAR) = ? 
+                             AND CAST(course_id AS CHAR) = ? 
+                             AND grade_type = ? 
+                             AND grade_number = ? 
+                             AND semester = ?",
+                            [$student_id, $selected_teacher, $selected_class, $selected_course, $grade_type, $grade_number, $selected_semester],
+                            'sssssss'
+                        );
+                        
+                        if ($existing_grade) {
+                            // Mettre à jour la note existante
+                            db_execute(
+                                "UPDATE student_teacher_course 
+                                 SET grade = ?, 
+                                     updated_at = NOW() 
+                                 WHERE id = ?",
+                                [$grade, $existing_grade['id']],
+                                'ds'
+                            );
+                        } else {
+                            // Insérer une nouvelle note
+                            db_execute(
+                                "INSERT INTO student_teacher_course 
+                                 (student_id, teacher_id, class_id, course_id, grade_type, grade_number, grade, coefficient, semester, created_at, updated_at) 
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
+                                [$student_id, $selected_teacher, $selected_class, $selected_course, $grade_type, $grade_number, $grade, 1, $selected_semester],
+                                'sssssidis'
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        $success_message = "Les notes ont été enregistrées avec succès.";
+    } catch (Exception $e) {
+        $error_message = "Une erreur est survenue lors de l'enregistrement des notes: " . $e->getMessage();
+    }
+}
+
+// Récupération des élèves et leurs notes
+$students = [];
+if ($selected_class && $selected_course && $selected_teacher) {
+    // Debug: Afficher les paramètres de recherche
+    echo "<div class='bg-blue-100 p-4 mb-4'>
+        Debug: Recherche - Classe=$selected_class, Cours=$selected_course, Enseignant=$selected_teacher, Semestre=$selected_semester
+    </div>";
+
+    // Vérifier si les notes existent
+    // Utilisation de CAST pour assurer la même collation
+    $check_grades = db_fetch_all(
+        "SELECT * FROM student_teacher_course 
+         WHERE CAST(teacher_id AS CHAR) = ? 
+         AND CAST(class_id AS CHAR) = ? 
+         AND CAST(course_id AS CHAR) = ? 
+         AND semester = ?",
+        [$selected_teacher, $selected_class, $selected_course, $selected_semester],
+        'ssss'
+    );
+
+    // Debug: Afficher les notes trouvées
+    echo "<div class='bg-blue-100 p-4 mb-4'>
+        Debug: Notes trouvées dans student_teacher_course:<br>";
+    foreach ($check_grades as $grade) {
+        echo "ID: " . $grade['id'] . 
+             ", Étudiant: " . $grade['student_id'] . 
+             ", Type: " . $grade['grade_type'] . 
+             ", Note: " . $grade['grade'] . 
+             ", Numéro: " . $grade['grade_number'] . 
+             "<br>";
+    }
+    echo "</div>";
+
+    // Récupérer tous les élèves de la classe
+    // Utilisation de CAST pour assurer la même collation
+    $students_data = db_fetch_all(
+        "SELECT * FROM students 
+         WHERE CAST(classid AS CHAR) = ? 
+         AND created_by = ? 
+         ORDER BY name",
+        [$selected_class, $admin_id],
+        'ss'
+    );
+
+    // Debug: Afficher les élèves trouvés
+    echo "<div class='bg-blue-100 p-4 mb-4'>
+        Debug: Élèves trouvés dans la classe:<br>";
+    foreach ($students_data as $student) {
+        echo "ID: " . $student['id'] . ", Nom: " . $student['name'] . "<br>";
+    }
+    echo "</div>";
+
+    // Organiser les données des élèves avec leurs notes
+    foreach ($students_data as $student) {
+        $student_grades = [
+            'devoir1' => '',
+            'devoir2' => '',
+            'examen' => ''
+        ];
+        
+        // Récupérer les notes existantes de l'élève
+        foreach ($check_grades as $grade) {
+            if ($grade['student_id'] === $student['id']) {
+                if ($grade['grade_type'] === 'devoir') {
+                    $student_grades['devoir' . $grade['grade_number']] = $grade['grade'];
+                } elseif ($grade['grade_type'] === 'examen') {
+                    $student_grades['examen'] = $grade['grade'];
+                }
+            }
+        }
+        
+        $students[] = [
+            'student_id' => $student['id'],
+            'student_name' => $student['name'],
+            'grades' => $student_grades
+        ];
+    }
+
+    // Debug: Afficher les données des élèves avec leurs notes
+    echo "<div class='bg-blue-100 p-4 mb-4'>
+        Debug: Données des élèves avec leurs notes:<br>";
+    foreach ($students as $student) {
+        echo "ID: " . $student['student_id'] . 
+             ", Nom: " . $student['student_name'] . 
+             ", Devoir 1: " . $student['grades']['devoir1'] . 
+             ", Devoir 2: " . $student['grades']['devoir2'] . 
+             ", Examen: " . $student['grades']['examen'] . 
+             "<br>";
+    }
+    echo "</div>";
+}
+?>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Gestion des Notes - Administration</title>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Gestion des Notes - Administration</h1>
+            <a href="index.php" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-gray-600 hover:bg-gray-700">
+                Retour au tableau de bord
+            </a>
+        </div>
+        
+        <?php if ($error_message): ?>
+            <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
+                <p><?php echo $error_message; ?></p>
+            </div>
+        <?php endif; ?>
+        
+        <?php if ($success_message): ?>
+            <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6" role="alert">
+                <p><?php echo $success_message; ?></p>
+            </div>
+        <?php endif; ?>
+        
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <form method="GET" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <!-- Sélection de la classe -->
+                <div>
+                    <label for="class" class="block text-sm font-medium text-gray-700 mb-2">Classe</label>
+                    <select id="class" name="class" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" onchange="this.form.submit()">
+                        <option value="">Sélectionner une classe</option>
+                        <?php foreach ($classes as $class): ?>
+                            <option value="<?php echo $class['id']; ?>" <?php echo $selected_class === $class['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($class['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                
+                <!-- Sélection du cours -->
+                <div>
+                    <label for="course" class="block text-sm font-medium text-gray-700 mb-2">Cours</label>
+                    <select id="course" name="course" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" onchange="this.form.submit()" <?php echo empty($selected_class) ? 'disabled' : ''; ?>>
+                        <option value="">Sélectionner un cours</option>
+                        <?php foreach ($class_courses as $course): ?>
+                            <option value="<?php echo $course['id']; ?>" <?php echo $selected_course === $course['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($course['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                
+                <!-- Sélection de l'enseignant -->
+                <div>
+                    <label for="teacher" class="block text-sm font-medium text-gray-700 mb-2">Enseignant</label>
+                    <select id="teacher" name="teacher" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" onchange="this.form.submit()" <?php echo empty($selected_course) ? 'disabled' : ''; ?>>
+                        <option value="">Sélectionner un enseignant</option>
+                        <?php foreach ($teachers as $teacher): ?>
+                            <option value="<?php echo $teacher['id']; ?>" <?php echo $selected_teacher === $teacher['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($teacher['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                
+                <!-- Sélection du semestre -->
+                <div>
+                    <label for="semester" class="block text-sm font-medium text-gray-700 mb-2">Semestre</label>
+                    <select id="semester" name="semester" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" onchange="this.form.submit()">
+                        <option value="1" <?php echo $selected_semester === '1' ? 'selected' : ''; ?>>Semestre 1</option>
+                        <option value="2" <?php echo $selected_semester === '2' ? 'selected' : ''; ?>>Semestre 2</option>
+                        <option value="3" <?php echo $selected_semester === '3' ? 'selected' : ''; ?>>Semestre 3</option>
+                    </select>
+                </div>
+                
+                <div class="flex items-end">
+                    <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Filtrer
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <?php if ($selected_class && $selected_course && $selected_teacher): ?>
+            <!-- Formulaire des notes -->
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-xl font-semibold text-gray-800">Notes des élèves</h2>
+                </div>
+                
+                <?php if (empty($students)): ?>
+                    <div class="p-6">
+                        <p class="text-gray-500">Aucun élève trouvé dans cette classe.</p>
+                    </div>
+                <?php else: ?>
+                    <form method="POST" class="p-6">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Devoir 1</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Devoir 2</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Examen</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <?php foreach ($students as $student): ?>
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                <?php echo htmlspecialchars($student['student_id']); ?>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                <?php echo htmlspecialchars($student['student_name']); ?>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <input type="number" 
+                                                       name="grades[<?php echo $student['student_id']; ?>][devoir1]" 
+                                                       value="<?php echo $student['grades']['devoir1']; ?>" 
+                                                       min="0" 
+                                                       max="20" 
+                                                       step="0.01" 
+                                                       class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <input type="number" 
+                                                       name="grades[<?php echo $student['student_id']; ?>][devoir2]" 
+                                                       value="<?php echo $student['grades']['devoir2']; ?>" 
+                                                       min="0" 
+                                                       max="20" 
+                                                       step="0.01" 
+                                                       class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <input type="number" 
+                                                       name="grades[<?php echo $student['student_id']; ?>][examen]" 
+                                                       value="<?php echo $student['grades']['examen']; ?>" 
+                                                       min="0" 
+                                                       max="20" 
+                                                       step="0.01" 
+                                                       class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-6 flex justify-end">
+                            <button type="submit" name="submit_grades"
+                                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                Enregistrer les notes
+                            </button>
+                        </div>
+                    </form>
+                <?php endif; ?>
+            </div>
+
+            <!-- Historique des notes -->
+            <div class="bg-white rounded-lg shadow-md overflow-hidden mt-8">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-xl font-semibold text-gray-800">Historique des notes</h2>
+                </div>
+                <div class="p-6">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Étudiant</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Numéro</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Note</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <?php foreach ($check_grades as $grade): ?>
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            <?php echo $grade['id']; ?>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            <?php 
+                                            $student_name = '';
+                                            foreach ($students_data as $student) {
+                                                if ($student['id'] === $grade['student_id']) {
+                                                    $student_name = $student['name'];
+                                                    break;
+                                                }
+                                            }
+                                            echo htmlspecialchars($student_name);
+                                            ?>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <?php echo ucfirst($grade['grade_type']); ?>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <?php echo $grade['grade_number']; ?>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <?php echo number_format($grade['grade'], 2); ?>/20
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <?php echo date('d/m/Y H:i', strtotime($grade['updated_at'])); ?>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                            <button type="button" 
+                                                    onclick="openEditModal('<?php echo $grade['id']; ?>', '<?php echo $grade['grade']; ?>')"
+                                                    class="text-indigo-600 hover:text-indigo-900">
+                                                Modifier
+                                            </button>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Modal pour modifier une note -->
+            <div id="editGradeModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+                <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                    <div class="mt-3">
+                        <h3 class="text-lg font-medium text-gray-900 mb-4">Modifier la note</h3>
+                        <form method="POST" id="editGradeForm">
+                            <input type="hidden" id="editGradeId" name="edit_grade_id">
+                            <div class="mb-4">
+                                <label for="editGradeValue" class="block text-sm font-medium text-gray-700 mb-2">Note</label>
+                                <input type="number" 
+                                       id="editGradeValue" 
+                                       name="edit_grade_value" 
+                                       min="0" 
+                                       max="20" 
+                                       step="0.01" 
+                                       class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            </div>
+                            <div class="flex justify-end space-x-3">
+                                <button type="button" 
+                                        onclick="closeEditModal()"
+                                        class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                    Annuler
+                                </button>
+                                <button type="submit" 
+                                        name="update_grade"
+                                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                    Enregistrer
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <script>
+                function openEditModal(gradeId, gradeValue) {
+                    document.getElementById('editGradeId').value = gradeId;
+                    document.getElementById('editGradeValue').value = gradeValue;
+                    document.getElementById('editGradeModal').classList.remove('hidden');
+                }
+                
+                function closeEditModal() {
+                    document.getElementById('editGradeModal').classList.add('hidden');
+                }
+            </script>
+        <?php endif; ?>
+    </div>
+</body>
+</html> 

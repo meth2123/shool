@@ -1,0 +1,261 @@
+<?php
+// Démarrer la mise en tampon de sortie dès le début du script
+ob_start();
+
+include_once('main.php');
+include_once('includes/auth_check.php');
+include_once('../../service/db_utils.php');
+require_once('../../vendor/autoload.php'); // TCPDF est installé via Composer
+
+// La vérification des droits d'administrateur est déjà faite dans auth_check.php
+// L'ID de l'administrateur est déjà défini dans auth_check.php
+
+$class_id = isset($_GET['class']) ? $_GET['class'] : '';
+$period = isset($_GET['period']) ? $_GET['period'] : '';
+
+// Validation des paramètres
+if (empty($class_id) || empty($period)) {
+    die("Paramètres manquants. Veuillez spécifier une classe et une période.");
+}
+
+// Vérifier que l'admin a accès à cette classe
+$class = db_fetch_row(
+    "SELECT * FROM class WHERE id = ? AND created_by = ?",
+    [$class_id, $admin_id],
+    'ss'
+);
+
+if (!$class) {
+    die("Accès non autorisé à cette classe.");
+}
+
+// Récupérer les étudiants de la classe
+$students = db_fetch_all(
+    "SELECT id, name FROM students WHERE classid = ? AND created_by = ? ORDER BY name",
+    [$class_id, $admin_id],
+    'ss'
+);
+
+if (empty($students)) {
+    die("Aucun étudiant trouvé dans cette classe.");
+}
+
+// Chemin du dossier temporaire
+$temp_dir = sys_get_temp_dir() . '/bulletins_' . time();
+if (!is_dir($temp_dir)) {
+    mkdir($temp_dir, 0777, true);
+}
+
+// Nom du fichier ZIP
+$class_name_safe = isset($class['name']) ? preg_replace('/[^a-zA-Z0-9_-]/', '_', $class['name']) : $class_id;
+$zip_filename = "bulletins_{$class_name_safe}_{$period}.zip";
+$zip_path = $temp_dir . '/' . $zip_filename;
+
+// Créer un nouvel objet ZipArchive
+$zip = new ZipArchive();
+if ($zip->open($zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
+    die("Impossible de créer l'archive ZIP. Vérifiez les permissions du dossier.");
+}
+
+// Compteur de bulletins ajoutés à l'archive
+$bulletins_count = 0;
+
+// Fonction pour générer un PDF simple pour un étudiant
+function generateStudentBulletin($student_id, $class_id, $period, $output_path) {
+    global $admin_id;
+    
+    // Récupération des informations de l'élève
+    $student = db_fetch_row(
+        "SELECT s.*, c.name as class_name
+         FROM students s
+         JOIN class c ON CAST(s.classid AS CHAR) = CAST(c.id AS CHAR)
+         WHERE s.id = ? AND s.created_by = ? AND c.id = ?",
+        [$student_id, $admin_id, $class_id],
+        'sss'
+    );
+
+    if (!$student) {
+        return false;
+    }
+
+    // Récupération des notes de l'élève
+    $grades = db_fetch_all(
+        "SELECT 
+            c.name as course_name,
+            c.coefficient as course_coefficient,
+            t.name as teacher_name,
+            stc.grade_type,
+            stc.grade_number,
+            stc.grade
+         FROM student_teacher_course stc
+         JOIN course c ON stc.course_id = c.id
+         JOIN teachers t ON stc.teacher_id = t.id
+         WHERE stc.student_id = ?
+         AND stc.class_id = ?
+         AND stc.semester = ?
+         ORDER BY c.name, stc.grade_type, stc.grade_number",
+        [$student_id, $class_id, $period],
+        'sss'
+    );
+
+    // Création d'une nouvelle instance de PDF
+    $pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+
+    // Configuration du document
+    $pdf->SetCreator(PDF_CREATOR);
+    $pdf->SetAuthor('Système de Gestion Scolaire');
+    $pdf->SetTitle('Bulletin - ' . $student['name']);
+    $pdf->SetSubject('Bulletin Scolaire');
+    $pdf->SetKeywords('Bulletin, École, Notes');
+
+    // Suppression des en-têtes et pieds de page par défaut
+    $pdf->setPrintHeader(false);
+    $pdf->setPrintFooter(false);
+
+    // Configuration des marges
+    $pdf->SetMargins(15, 15, 15);
+
+    // Ajout d'une page
+    $pdf->AddPage();
+
+    // En-tête du bulletin
+    $pdf->SetFont('helvetica', 'B', 16);
+    $pdf->Cell(0, 10, 'Bulletin Scolaire', 0, 1, 'C');
+    $pdf->Cell(0, 10, 'Année scolaire ' . date('Y') . '-' . (date('Y') + 1), 0, 1, 'C');
+    $pdf->Cell(0, 10, ($period == '1' ? '1er' : ($period == '2' ? '2ème' : '3ème')) . ' Trimestre', 0, 1, 'C');
+    $pdf->Ln(5);
+
+    // Informations de l'élève
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(0, 10, 'Informations de l\'élève', 0, 1, 'L');
+    $pdf->SetFont('helvetica', '', 10);
+    $pdf->Cell(40, 7, 'Nom :', 0, 0);
+    $pdf->Cell(0, 7, $student['name'], 0, 1);
+    $pdf->Cell(40, 7, 'Classe :', 0, 0);
+    $pdf->Cell(0, 7, $student['class_name'], 0, 1);
+    $pdf->Ln(5);
+
+    // Tableau des notes
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(0, 10, 'Notes', 0, 1, 'L');
+
+    // En-tête du tableau
+    $pdf->SetFont('helvetica', 'B', 10);
+    $pdf->Cell(60, 7, 'Matière', 1, 0, 'C');
+    $pdf->Cell(40, 7, 'Enseignant', 1, 0, 'C');
+    $pdf->Cell(30, 7, 'Type', 1, 0, 'C');
+    $pdf->Cell(30, 7, 'Note', 1, 1, 'C');
+
+    // Données
+    $pdf->SetFont('helvetica', '', 10);
+    
+    $current_course = '';
+    $course_grades = [];
+    
+    // Organiser les notes par matière
+    foreach ($grades as $grade) {
+        if (!isset($course_grades[$grade['course_name']])) {
+            $course_grades[$grade['course_name']] = [
+                'teacher' => $grade['teacher_name'],
+                'grades' => []
+            ];
+        }
+        
+        $grade_type = $grade['grade_type'] . ($grade['grade_type'] === 'devoir' ? ' ' . $grade['grade_number'] : '');
+        $course_grades[$grade['course_name']]['grades'][] = [
+            'type' => $grade_type,
+            'value' => $grade['grade']
+        ];
+    }
+    
+    // Afficher les notes
+    foreach ($course_grades as $course => $data) {
+        $first_row = true;
+        foreach ($data['grades'] as $index => $grade) {
+            if ($first_row) {
+                $pdf->Cell(60, 7, $course, 1, 0, 'L');
+                $pdf->Cell(40, 7, $data['teacher'], 1, 0, 'L');
+                $first_row = false;
+            } else {
+                $pdf->Cell(60, 7, '', 1, 0, 'L');
+                $pdf->Cell(40, 7, '', 1, 0, 'L');
+            }
+            
+            $pdf->Cell(30, 7, ucfirst($grade['type']), 1, 0, 'C');
+            $pdf->Cell(30, 7, number_format($grade['value'], 2) . '/20', 1, 1, 'C');
+        }
+    }
+    
+    // Pied de page
+    $pdf->Ln(10);
+    $pdf->SetFont('helvetica', 'I', 8);
+    $pdf->Cell(0, 10, 'Document généré le ' . date('d/m/Y à H:i'), 0, 0, 'C');
+
+    // Sauvegarder le PDF
+    return $pdf->Output($output_path, 'F');
+}
+
+// Générer les bulletins pour chaque étudiant
+foreach ($students as $student) {
+    $bulletin_filename = "bulletin_{$student['id']}_{$period}.pdf";
+    $bulletin_path = $temp_dir . '/' . $bulletin_filename;
+    
+    // Générer le PDF du bulletin
+    if (generateStudentBulletin($student['id'], $class_id, $period, $bulletin_path)) {
+        // Ajouter le fichier à l'archive si la génération a réussi
+        if (file_exists($bulletin_path)) {
+            if ($zip->addFile($bulletin_path, $bulletin_filename)) {
+                $bulletins_count++;
+            }
+        }
+    }
+}
+
+// Fermer l'archive ZIP
+$zip->close();
+
+// Vérifier si des bulletins ont été ajoutés et si le fichier ZIP existe
+if ($bulletins_count === 0 || !file_exists($zip_path)) {
+    die("Aucun bulletin n'a pu être ajouté à l'archive ou l'archive n'a pas pu être créée.");
+}
+
+// Vérifier la taille du fichier
+$filesize = filesize($zip_path);
+if ($filesize === false || $filesize === 0) {
+    die("Le fichier ZIP est vide ou inaccessible.");
+}
+
+// Nettoyer tout le contenu mis en tampon
+if (ob_get_level()) {
+    ob_end_clean();
+}
+
+// Télécharger le fichier ZIP
+header('Content-Description: File Transfer');
+header('Content-Type: application/zip');
+header('Content-Disposition: attachment; filename="' . $zip_filename . '"');
+header('Content-Length: ' . $filesize);
+header('Content-Transfer-Encoding: binary');
+header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+header('Pragma: public');
+header('Expires: 0');
+
+// Lire et envoyer le fichier
+readfile($zip_path);
+
+// Supprimer les fichiers temporaires
+foreach ($students as $student) {
+    $bulletin_path = $temp_dir . '/bulletin_' . $student['id'] . '_' . $period . '.pdf';
+    if (file_exists($bulletin_path)) {
+        unlink($bulletin_path);
+    }
+}
+
+// Supprimer le fichier ZIP
+unlink($zip_path);
+
+// Supprimer le dossier temporaire
+rmdir($temp_dir);
+
+exit();
+?>

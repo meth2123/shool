@@ -1,0 +1,20 @@
+# Fichiers de configuration Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Fichiers de développement
+.git
+.gitignore
+*.md
+*.log
+
+# Fichiers temporaires
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
+
+# Dossiers spécifiques
+vendor/
+node_modules/

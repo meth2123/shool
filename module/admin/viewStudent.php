@@ -32,53 +32,66 @@ $string = "";
 $images_dir = "../images/";
 
 $content = '
-<div class="container mx-auto px-4 py-8">
-    <div class="bg-white rounded-lg shadow-lg p-6">
-        <h2 class="text-2xl font-bold mb-6">Liste des étudiants</h2>
-        
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Téléphone</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Genre</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date de naissance</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date d\'admission</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Parent</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Classe</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Photo</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">';
+<div class="container py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h4 class="card-title mb-0">Liste des étudiants</h4>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nom</th>
+                                    <th>Téléphone</th>
+                                    <th>Email</th>
+                                    <th>Genre</th>
+                                    <th>Date de naissance</th>
+                                    <th>Date d\'admission</th>
+                                    <th>Adresse</th>
+                                    <th>ID Parent</th>
+                                    <th>ID Classe</th>
+                                    <th>Photo</th>
+                                </tr>
+                            </thead>
+                            <tbody>';
 
 while($row = $result->fetch_assoc()) {
     error_log("Données étudiant: " . print_r($row, true));
     $picname = $row['id'];
     $content .= '
-        <tr class="hover:bg-gray-50">
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">'.$row['id'].'</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">'.$row['name'].'</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">'.$row['phone'].'</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">'.$row['email'].'</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">'.$row['sex'].'</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">'.$row['dob'].'</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">'.$row['addmissiondate'].'</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">'.$row['address'].'</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">'.$row['parentid'].'</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">'.$row['classid'].'</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                <img src="'.$images_dir.$picname.'.jpg" alt="'.$picname.'" class="h-20 w-20 object-cover rounded-full">
+        <tr>
+            <td>'.$row['id'].'</td>
+            <td>'.$row['name'].'</td>
+            <td>'.$row['phone'].'</td>
+            <td>'.$row['email'].'</td>
+            <td><span class="badge bg-'.($row['sex'] == 'Male' ? 'primary' : 'info').'">'.$row['sex'].'</span></td>
+            <td>'.$row['dob'].'</td>
+            <td>'.$row['addmissiondate'].'</td>
+            <td class="text-truncate" style="max-width: 150px;">'.$row['address'].'</td>
+            <td>'.$row['parentid'].'</td>
+            <td>'.$row['classid'].'</td>
+            <td>
+                <img src="'.$images_dir.$picname.'.jpg" alt="'.$picname.'" class="rounded-circle" width="50" height="50">
             </td>
         </tr>';
 }
 
 $content .= '
-                </tbody>
-            </table>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+                    <span class="text-muted">Total : '.mysqli_num_rows($result).' étudiant(s)</span>
+                    <a href="manageStudent.php" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-arrow-left me-1"></i> Retour
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 </div>';

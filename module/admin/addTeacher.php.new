@@ -1,0 +1,353 @@
+<?php
+include_once('main.php');
+include_once('includes/admin_actions.php');
+include_once('includes/admin_utils.php');
+
+$admin_id = $_SESSION['login_id'];
+$status_message = '';
+
+if(isset($_POST['submit'])) {
+    try {
+        // Récupération et validation des données
+        $name = trim($_POST['name']);
+        $email = trim($_POST['email']);
+        $phone = trim($_POST['phone']);
+        $gender = $_POST['gender'];
+        $password = trim($_POST['password']);
+        $address = trim($_POST['address']);
+        $dob = $_POST['dob'];
+        $hiredate = $_POST['hiredate'];
+        $salary = trim($_POST['salary']);
+
+        // Validation des données
+        if(empty($name)) throw new Exception("Le nom est requis");
+        if(empty($email)) throw new Exception("L'email est requis");
+        if(!filter_var($email, FILTER_VALIDATE_EMAIL)) throw new Exception("Format d'email invalide");
+        if(empty($phone)) throw new Exception("Le téléphone est requis");
+        if(empty($password)) throw new Exception("Le mot de passe est requis");
+        if(empty($dob)) throw new Exception("La date de naissance est requise");
+        if(empty($hiredate)) throw new Exception("La date d'embauche est requise");
+        if(!is_numeric($salary)) throw new Exception("Le salaire doit être un nombre");
+
+        // Générer un ID unique pour l'enseignant
+        $teacher_id = 'TE-' . strtoupper(substr($name, 0, 3)) . '-' . rand(1000, 9999);
+
+        // Vérifier si l'email existe déjà
+        $check_sql = "SELECT id FROM teachers WHERE email = ?";
+        $check_stmt = $link->prepare($check_sql);
+        $check_stmt->bind_param("s", $email);
+        $check_stmt->execute();
+        if($check_stmt->get_result()->num_rows > 0) {
+            throw new Exception("Un enseignant avec cet email existe déjà");
+        }
+
+        // Insertion du nouvel enseignant
+        $link->begin_transaction();
+        
+        try {
+            // Insertion dans la table users
+            $user_sql = "INSERT INTO users (userid, password, usertype) VALUES (?, ?, 'teacher')";
+            $user_stmt = $link->prepare($user_sql);
+            if (!$user_stmt) {
+                throw new Exception("Erreur de préparation de la requête users : " . $link->error);
+            }
+            
+            // On hash le mot de passe pour la table users
+            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+            $user_stmt->bind_param("ss", $teacher_id, $hashed_password);
+            
+            if (!$user_stmt->execute()) {
+                throw new Exception("Erreur lors de l'insertion dans users : " . $user_stmt->error);
+            }
+
+            // Insertion dans la table teachers
+            $sql = "INSERT INTO teachers (id, name, password, phone, email, sex, dob, address, hiredate, salary, created_by) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $stmt = $link->prepare($sql);
+            if (!$stmt) {
+                throw new Exception("Erreur de préparation de la requête teachers : " . $link->error);
+            }
+
+            $stmt->bind_param("sssssssssds", $teacher_id, $name, $password, $phone, $email, $gender, $dob, $address, $hiredate, $salary, $admin_id);
+
+            if (!$stmt->execute()) {
+                throw new Exception("Erreur lors de l'insertion dans teachers : " . $stmt->error);
+            }
+
+            $link->commit();
+            header("Location: manageTeacher.php?success=" . urlencode("Enseignant ajouté avec succès"));
+            exit;
+
+        } catch (Exception $e) {
+            $link->rollback();
+            $status_message = '<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">' . 
+                            htmlspecialchars($e->getMessage()) . '</div>';
+        }
+
+    } catch (Exception $e) {
+        $status_message = '<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">' . 
+                         htmlspecialchars($e->getMessage()) . '</div>';
+    }
+}
+
+$content = '
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-3xl mx-auto">
+        ' . $status_message . '
+        <div class="bg-white rounded-lg shadow-lg p-4 sm:p-6">
+            <div class="flex items-center justify-between mb-6 border-b pb-3">
+                <h2 class="text-xl sm:text-2xl font-bold text-gray-900">Ajouter un Enseignant</h2>
+                <span class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Nouveau</span>
+            </div>
+            
+            <form action="addTeacher.php" method="post" onsubmit="return validateTeacherForm();" class="space-y-4 sm:space-y-6">
+                <!-- Nom et Email -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                    <div class="relative">
+                        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Nom*</label>
+                        <div class="relative rounded-md shadow-sm">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-user text-gray-400"></i>
+                            </div>
+                            <input type="text" id="name" name="name" required
+                                   value="' . htmlspecialchars($_POST['name'] ?? '') . '"
+                                   class="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm sm:text-base">
+                        </div>
+                        <p id="nameError" class="mt-1 text-sm text-red-600 hidden"></p>
+                    </div>
+                    <div class="relative">
+                        <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email*</label>
+                        <div class="relative rounded-md shadow-sm">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-envelope text-gray-400"></i>
+                            </div>
+                            <input type="email" id="email" name="email" required
+                                   value="' . htmlspecialchars($_POST['email'] ?? '') . '"
+                                   class="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm sm:text-base">
+                        </div>
+                        <p id="emailError" class="mt-1 text-sm text-red-600 hidden"></p>
+                    </div>
+                </div>
+
+                <!-- Téléphone et Genre -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                    <div class="relative">
+                        <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Téléphone*</label>
+                        <div class="relative rounded-md shadow-sm">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-phone text-gray-400"></i>
+                            </div>
+                            <input type="tel" id="phone" name="phone" required
+                                   value="' . htmlspecialchars($_POST['phone'] ?? '') . '"
+                                   class="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm sm:text-base">
+                        </div>
+                        <p id="phoneError" class="mt-1 text-sm text-red-600 hidden"></p>
+                    </div>
+                    <div class="relative">
+                        <label for="gender" class="block text-sm font-medium text-gray-700 mb-1">Genre*</label>
+                        <div class="relative rounded-md shadow-sm">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-venus-mars text-gray-400"></i>
+                            </div>
+                            <select id="gender" name="gender" required
+                                    class="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm sm:text-base appearance-none">
+                                <option value="male" ' . (isset($_POST['gender']) && $_POST['gender'] == 'male' ? 'selected' : '') . '>Homme</option>
+                                <option value="female" ' . (isset($_POST['gender']) && $_POST['gender'] == 'female' ? 'selected' : '') . '>Femme</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <i class="fas fa-chevron-down text-gray-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Date de naissance et Mot de passe -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                    <div class="relative">
+                        <label for="dob" class="block text-sm font-medium text-gray-700 mb-1">Date de naissance*</label>
+                        <div class="relative rounded-md shadow-sm">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-calendar-alt text-gray-400"></i>
+                            </div>
+                            <input type="date" id="dob" name="dob" required
+                                   value="' . htmlspecialchars($_POST['dob'] ?? '') . '"
+                                   class="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm sm:text-base">
+                        </div>
+                        <p id="dobError" class="mt-1 text-sm text-red-600 hidden"></p>
+                    </div>
+                    <div class="relative">
+                        <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Mot de passe*</label>
+                        <div class="relative rounded-md shadow-sm">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-lock text-gray-400"></i>
+                            </div>
+                            <input type="password" id="password" name="password" required
+                                   class="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm sm:text-base">
+                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center">
+                                <button type="button" onclick="togglePasswordVisibility()" class="text-gray-400 hover:text-gray-500 focus:outline-none">
+                                    <i class="fas fa-eye" id="password-toggle-icon"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <p id="passwordError" class="mt-1 text-sm text-red-600 hidden"></p>
+                    </div>
+                </div>
+
+                <!-- Date d\'embauche et Salaire -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                    <div class="relative">
+                        <label for="hiredate" class="block text-sm font-medium text-gray-700 mb-1">Date d\'embauche*</label>
+                        <div class="relative rounded-md shadow-sm">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-briefcase text-gray-400"></i>
+                            </div>
+                            <input type="date" id="hiredate" name="hiredate" required
+                                   value="' . htmlspecialchars($_POST['hiredate'] ?? date('Y-m-d')) . '"
+                                   class="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm sm:text-base">
+                        </div>
+                        <p id="hiredateError" class="mt-1 text-sm text-red-600 hidden"></p>
+                    </div>
+                    <div class="relative">
+                        <label for="salary" class="block text-sm font-medium text-gray-700 mb-1">Salaire*</label>
+                        <div class="relative rounded-md shadow-sm">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-money-bill-wave text-gray-400"></i>
+                            </div>
+                            <input type="number" id="salary" name="salary" required step="0.01" min="0"
+                                   value="' . htmlspecialchars($_POST['salary'] ?? '') . '"
+                                   class="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm sm:text-base">
+                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <span class="text-gray-500">€</span>
+                            </div>
+                        </div>
+                        <p id="salaryError" class="mt-1 text-sm text-red-600 hidden"></p>
+                    </div>
+                </div>
+
+                <!-- Adresse -->
+                <div class="relative">
+                    <label for="address" class="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+                    <div class="relative rounded-md shadow-sm">
+                        <div class="absolute top-3 left-3 flex items-start pointer-events-none">
+                            <i class="fas fa-home text-gray-400"></i>
+                        </div>
+                        <textarea id="address" name="address" rows="3"
+                                  class="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm sm:text-base">' . 
+                                  htmlspecialchars($_POST['address'] ?? '') . '</textarea>
+                    </div>
+                </div>
+
+                <!-- Submit Buttons -->
+                <div class="flex flex-col-reverse sm:flex-row justify-between gap-3 pt-4 border-t border-gray-200">
+                    <a href="manageTeacher.php" 
+                       class="w-full sm:w-auto text-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200">
+                        <i class="fas fa-arrow-left mr-2"></i>Retour
+                    </a>
+                    <button type="submit" name="submit" value="1"
+                            class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200">
+                        <i class="fas fa-user-plus mr-2"></i>Ajouter l\'enseignant
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+';
+
+// Ajouter le script JavaScript séparément, pas dans la chaîne PHP
+$js_content = '
+<script>
+function togglePasswordVisibility() {
+    var passwordInput = document.getElementById("password");
+    var toggleIcon = document.getElementById("password-toggle-icon");
+    
+    if (passwordInput.type === "password") {
+        passwordInput.type = "text";
+        toggleIcon.classList.remove("fa-eye");
+        toggleIcon.classList.add("fa-eye-slash");
+    } else {
+        passwordInput.type = "password";
+        toggleIcon.classList.remove("fa-eye-slash");
+        toggleIcon.classList.add("fa-eye");
+    }
+}
+
+function validateTeacherForm() {
+    var isValid = true;
+    var errors = {};
+
+    // Validate Name
+    var name = document.getElementById("name").value.trim();
+    if (!name || name.length < 2) {
+        errors.name = "Le nom doit contenir au moins 2 caractères";
+        isValid = false;
+    }
+
+    // Validate Email
+    var email = document.getElementById("email").value.trim();
+    if (!email || !email.includes("@")) {
+        errors.email = "Email invalide";
+        isValid = false;
+    }
+
+    // Validate Phone
+    var phone = document.getElementById("phone").value.trim();
+    if (!phone || phone.length < 8) {
+        errors.phone = "Numéro de téléphone invalide";
+        isValid = false;
+    }
+
+    // Validate Password
+    var password = document.getElementById("password").value;
+    if (!password || password.length < 6) {
+        errors.password = "Le mot de passe doit contenir au moins 6 caractères";
+        isValid = false;
+    }
+
+    // Validate Date of Birth
+    var dob = document.getElementById("dob").value;
+    if (!dob) {
+        errors.dob = "La date de naissance est requise";
+        isValid = false;
+    }
+
+    // Validate Hire Date
+    var hiredate = document.getElementById("hiredate").value;
+    if (!hiredate) {
+        errors.hiredate = "La date d\'embauche est requise";
+        isValid = false;
+    }
+
+    // Validate Salary
+    var salary = document.getElementById("salary").value;
+    if (!salary || isNaN(salary) || parseFloat(salary) < 0) {
+        errors.salary = "Le salaire doit être un nombre positif";
+        isValid = false;
+    }
+
+    // Clear previous errors
+    document.querySelectorAll(".text-red-600").forEach(function(el) {
+        el.textContent = "";
+        el.classList.add("hidden");
+    });
+
+    // Display new errors if any
+    Object.keys(errors).forEach(function(field) {
+        var errorElement = document.getElementById(field + "Error");
+        if (errorElement) {
+            errorElement.textContent = errors[field];
+            errorElement.classList.remove("hidden");
+        }
+    });
+
+    return isValid;
+}
+</script>
+';
+
+// Inclure le contenu et le script JavaScript dans le layout
+include('templates/layout.php');
+
+// Ajouter le script JavaScript après le layout
+echo $js_content;
+?>

@@ -1,9 +1,19 @@
 <?php
 // Database configuration
-define('DB_HOST', 'localhost');     // Database host
-define('DB_USER', 'root');         // Database user
-define('DB_PASSWORD', '');         // Database password
-define('DB_NAME', 'gestion');     // Database name
+// Vérifier si nous sommes dans un environnement Docker/production
+if (file_exists('/.dockerenv') || getenv('DB_HOST')) {
+    // Paramètres pour l'environnement de production/Docker
+    define('DB_HOST', getenv('DB_HOST') ? getenv('DB_HOST') : 'db');     // Database host
+    define('DB_USER', getenv('DB_USER') ? getenv('DB_USER') : 'root');   // Database user
+    define('DB_PASSWORD', getenv('DB_PASSWORD') ? getenv('DB_PASSWORD') : 'root_password'); // Database password
+    define('DB_NAME', getenv('DB_NAME') ? getenv('DB_NAME') : 'gestion'); // Database name
+} else {
+    // Paramètres pour l'environnement local (WAMP)
+    define('DB_HOST', 'localhost');     // Database host
+    define('DB_USER', 'root');         // Database user
+    define('DB_PASSWORD', '');         // Database password
+    define('DB_NAME', 'gestion');     // Database name
+}
 
 // Session configuration
 if (!isset($_SESSION)) {

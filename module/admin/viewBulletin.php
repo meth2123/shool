@@ -1,12 +1,9 @@
 <?php
 include_once('main.php');
+include_once('includes/auth_check.php');
 include_once('../../service/db_utils.php');
 
-// Vérification de la session admin
-if (!isset($_SESSION['login_id'])) {
-    header("Location: ../../index.php");
-    exit();
-}
+// La vérification de la session admin est déjà faite dans auth_check.php
 
 // Connexion à la base de données
 require_once('../../db/config.php');
@@ -15,7 +12,8 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-$admin_id = $_SESSION['login_id'];
+// L'ID de l'administrateur et le login_session sont déjà définis dans auth_check.php
+// $loged_user_name est défini dans le template layout.php
 $student_id = $_GET['student'] ?? '';
 $class_id = $_GET['class'] ?? '';
 $period = $_GET['period'] ?? '1';
@@ -236,44 +234,61 @@ function safe_html($value) {
     return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
 }
 
-$content = '
-<div class="container mx-auto px-4 py-8">
-    <div class="bg-white rounded-lg shadow-lg p-6">
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-900 mb-2">Bulletin de Notes</h1>
-            <p class="text-gray-600">Semestre ' . safe_html($period) . '</p>
-        </div>
+// Déterminer la couleur de la mention pour Bootstrap
+$mention_color = '';
+if ($general_average >= 16) {
+    $mention_color = 'text-success';
+} elseif ($general_average >= 14) {
+    $mention_color = 'text-primary';
+} elseif ($general_average >= 12) {
+    $mention_color = 'text-info';
+} elseif ($general_average >= 10) {
+    $mention_color = 'text-secondary';
+} else {
+    $mention_color = 'text-danger';
+}
 
-        <!-- Informations de l\'élève -->
-        <div class="mb-8 p-4 bg-gray-50 rounded-lg">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Informations de l\'élève</h2>
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <p class="text-sm text-gray-600">Nom</p>
-                    <p class="font-medium">' . safe_html($student['student_name']) . '</p>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-600">Classe</p>
-                    <p class="font-medium">' . safe_html($class['name']) . '</p>
+$content = '
+<div class="container py-4">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="text-center mb-4">
+                <h1 class="h3 mb-2">Bulletin de Notes</h1>
+                <p class="text-muted">Semestre ' . safe_html($period) . '</p>
+            </div>
+
+            <!-- Informations de l\'élève -->
+            <div class="card mb-4 bg-light">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Informations de l\'élève</h2>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p class="small text-muted mb-1">Nom</p>
+                            <p class="fw-medium">' . safe_html($student['name'] ?? $student_id) . '</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="small text-muted mb-1">Classe</p>
+                            <p class="fw-medium">' . safe_html($class['name'] ?? $class_id) . '</p>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Notes par matière -->
-        <div class="mb-8">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Notes par matière</h2>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Matière</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Note</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Coefficient</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Professeur</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">';
+            <!-- Notes par matière -->
+            <div class="mb-4">
+                <h2 class="h5 mb-3">Notes par matière</h2>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Matière</th>
+                                <th>Type</th>
+                                <th>Note</th>
+                                <th>Coefficient</th>
+                                <th>Professeur</th>
+                            </tr>
+                        </thead>
+                        <tbody>';
 
 foreach ($course_averages as $course_name => $course) {
     $rowspan = count($course['grades']);
@@ -282,16 +297,16 @@ foreach ($course_averages as $course_name => $course) {
     foreach ($course['grades'] as $grade) {
         $content .= '
             <tr>
-                ' . ($first ? '<td rowspan="' . $rowspan . '" class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">' . 
-                    safe_html($course_name) . ' (coef ' . safe_html($course['course_coefficient']) . ')</td>' : '') . '
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . 
+                ' . ($first ? '<td rowspan="' . $rowspan . '" class="align-middle fw-medium">' . 
+                    safe_html($course_name) . ' <span class="badge bg-secondary">coef ' . safe_html($course['course_coefficient']) . '</span></td>' : '') . '
+                <td>' . 
                     ($grade['grade_type'] === 'devoir' ? 'Devoir ' : 'Examen ') . 
                     safe_html($grade['grade_number']) . '</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . 
+                <td>' . 
                     safe_html($grade['grade']) . '/20</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . 
+                <td>' . 
                     safe_html($course['course_coefficient']) . '</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . 
+                <td>' . 
                     safe_html($grade['teacher_name']) . '</td>
             </tr>';
         $first = false;
@@ -304,14 +319,28 @@ foreach ($course_averages as $course_name => $course) {
     // Calculer le coefficient total (coefficient de la matière × nombre d'évaluations)
     $total_coefficient = $course['course_coefficient'] * $course['grade_count'];
     
+    // Déterminer la classe de couleur pour la moyenne
+    $avg_color_class = '';
+    if ($course_average >= 16) {
+        $avg_color_class = 'text-success fw-bold';
+    } elseif ($course_average >= 14) {
+        $avg_color_class = 'text-primary fw-bold';
+    } elseif ($course_average >= 12) {
+        $avg_color_class = 'text-info fw-bold';
+    } elseif ($course_average >= 10) {
+        $avg_color_class = 'text-secondary fw-bold';
+    } else {
+        $avg_color_class = 'text-danger fw-bold';
+    }
+    
     $content .= '
-        <tr class="bg-gray-50">
-            <td colspan="2" class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+        <tr class="table-light">
+            <td colspan="2" class="fw-medium">
                 Moyenne ' . safe_html($course_name) . '
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">' . 
+            <td class="' . $avg_color_class . '">' . 
                 number_format($course_average, 2) . '/20</td>
-            <td colspan="2" class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            <td colspan="2" class="small">
                 Coef. matière: ' . safe_html($course['course_coefficient']) . ' | 
                 Coef. total: ' . number_format($total_coefficient, 2) . ' (' . 
                 safe_html($course['grade_count']) . ' éval. × ' . 
@@ -327,30 +356,43 @@ $content .= '
         </div>
 
         <!-- Résultats généraux -->
-        <div class="mt-8 p-4 bg-gray-50 rounded-lg">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Résultats généraux</h2>
-            <div class="grid grid-cols-3 gap-4">
-                <div>
-                    <p class="text-sm text-gray-600">Moyenne générale</p>
-                    <p class="text-2xl font-bold text-gray-900">' . number_format($general_average, 2) . '/20</p>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-600">Rang</p>
-                    <p class="text-2xl font-bold text-gray-900">' . $student_rank . '/' . $total_students . '</p>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-600">Mention</p>
-                    <p class="text-2xl font-bold text-gray-900">' . safe_html($mention) . '</p>
+        <div class="card bg-light mb-4">
+            <div class="card-body">
+                <h2 class="h5 mb-3">Résultats généraux</h2>
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <p class="small text-muted mb-1">Moyenne générale</p>
+                        <p class="display-6 fw-bold ' . ($general_average >= 10 ? 'text-success' : 'text-danger') . '">' . 
+                            number_format($general_average, 2) . '/20</p>
+                    </div>
+                    <div class="col-md-4">
+                        <p class="small text-muted mb-1">Rang</p>
+                        <p class="display-6 fw-bold">' . $student_rank . '<span class="fs-6">/' . $total_students . '</span></p>
+                    </div>
+                    <div class="col-md-4">
+                        <p class="small text-muted mb-1">Mention</p>
+                        <p class="display-6 fw-bold ' . $mention_color . '">' . safe_html($mention) . '</p>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Bouton d\'impression -->
-        <div class="mt-8 text-center">
-            <button onclick="window.print()" 
-                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                Imprimer le bulletin
-            </button>
+        <!-- Actions -->
+        <div class="d-flex justify-content-between">
+            <a href="manageBulletins.php" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+            <div>
+                <a href="generateBulletin.php?student=' . htmlspecialchars($student_id) . 
+                   '&class=' . htmlspecialchars($class_id) . 
+                   '&period=' . htmlspecialchars($period) . '"
+                   class="btn btn-outline-success me-2">
+                   <i class="fas fa-file-pdf me-2"></i>Générer PDF
+                </a>
+                <button onclick="window.print()" class="btn btn-primary">
+                    <i class="fas fa-print me-2"></i>Imprimer
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -367,12 +409,13 @@ $content .= '
         position: absolute;
         left: 0;
         top: 0;
+        width: 100%;
     }
-    button {
-        display: none;
+    .btn, .d-flex.justify-content-between {
+        display: none !important;
     }
 }
 </style>';
 
 include('templates/layout.php');
-?> 
+?>

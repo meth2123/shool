@@ -6,8 +6,8 @@ include_once('includes/admin_utils.php');
 $admin_id = $_SESSION['login_id'];
 
 // Gestion des messages de succès/erreur
-$success_message = isset($_GET['success']) ? '<div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-4">' . htmlspecialchars($_GET['success']) . '</div>' : '';
-$error_message = isset($_GET['error']) ? '<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">' . htmlspecialchars($_GET['error']) . '</div>' : '';
+$success_message = isset($_GET['success']) ? '<div class="alert alert-success mb-4">' . htmlspecialchars($_GET['success']) . '</div>' : '';
+$error_message = isset($_GET['error']) ? '<div class="alert alert-danger mb-4">' . htmlspecialchars($_GET['error']) . '</div>' : '';
 
 // Récupération des cours créés par cet admin
 $sql = "SELECT c.*, t.name as teacher_name, cl.name as class_name 
@@ -23,64 +23,79 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 $content = '
-<div class="container mx-auto px-4 py-8">
+<div class="container py-4">
     ' . $success_message . $error_message . '
     
-    <div class="flex justify-between items-center mb-6">
-        <h2 class="text-2xl font-bold text-gray-900">Gestion des Cours</h2>
-        <a href="addCourse.php" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-            Ajouter un Cours
-        </a>
-    </div>
-
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom du cours</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enseignant</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Classe</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">';
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h4 class="card-title mb-0">Gestion des Cours</h4>
+                    <a href="addCourse.php" class="btn btn-primary">
+                        <i class="fas fa-plus-circle me-2"></i>Ajouter un Cours
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nom du cours</th>
+                                    <th>Enseignant</th>
+                                    <th>Classe</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>';
 
                 if ($result->num_rows > 0) {
                     while ($row = $result->fetch_assoc()) {
                         $content .= '
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">' . 
-                                htmlspecialchars($row['id']) . '</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">' . 
-                                htmlspecialchars($row['name']) . '</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">' . 
-                                htmlspecialchars($row['teacher_name'] ?? 'Non assigné') . '</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">' . 
-                                htmlspecialchars($row['class_name'] ?? 'Non assignée') . '</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                <a href="updateCourse.php?id=' . htmlspecialchars($row['id']) . '" 
-                                   class="text-blue-600 hover:text-blue-900">Modifier</a>
-                                <a href="viewCourse.php?id=' . htmlspecialchars($row['id']) . '" 
-                                   class="text-green-600 hover:text-green-900">Voir</a>
-                                <button onclick="confirmDelete(\'' . htmlspecialchars($row['id']) . '\')" 
-                                        class="text-red-600 hover:text-red-900">Supprimer</button>
+                        <tr>
+                            <td>' . htmlspecialchars($row['id']) . '</td>
+                            <td>' . htmlspecialchars($row['name']) . '</td>
+                            <td>' . htmlspecialchars($row['teacher_name'] ?? 'Non assigné') . '</td>
+                            <td>' . htmlspecialchars($row['class_name'] ?? 'Non assignée') . '</td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="updateCourse.php?id=' . htmlspecialchars($row['id']) . '" 
+                                       class="btn btn-outline-primary" title="Modifier">
+                                       <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="viewCourse.php?id=' . htmlspecialchars($row['id']) . '" 
+                                       class="btn btn-outline-success" title="Voir">
+                                       <i class="fas fa-eye"></i>
+                                    </a>
+                                    <button onclick="confirmDelete(\'' . htmlspecialchars($row['id']) . '\')" 
+                                            class="btn btn-outline-danger" title="Supprimer">
+                                            <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
                             </td>
                         </tr>';
                     }
                 } else {
                     $content .= '
                     <tr>
-                        <td colspan="5" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                            Aucun cours trouvé. <a href="addCourse.php" class="text-blue-600 hover:text-blue-900">Ajouter un cours</a>
+                        <td colspan="5" class="text-center p-4">
+                            <div class="py-5">
+                                <i class="fas fa-book-open fa-3x text-muted mb-3"></i>
+                                <p>Aucun cours trouvé.</p>
+                                <a href="addCourse.php" class="btn btn-primary mt-2">
+                                    <i class="fas fa-plus-circle me-2"></i>Ajouter un cours
+                                </a>
+                            </div>
                         </td>
                     </tr>';
                 }
 
 $content .= '
-                </tbody>
-            </table>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>

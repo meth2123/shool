@@ -8,7 +8,9 @@ if (!isset($_SESSION['login_id'])) {
     exit();
 }
 
-$teacher_id = $_SESSION['login_id'];
+// Définir la variable check pour le template layout.php
+$check = $_SESSION['login_id'];
+$teacher_id = $check;
 
 // Récupérer les classes du professeur
 $classes_query = "SELECT DISTINCT cl.id, cl.name 
@@ -71,21 +73,9 @@ JOIN class cl ON c.classid = cl.id
 WHERE c.teacherid = ? 
 AND e.created_by IN ('admin', 'ad-123-1')";
 
-// Log des requêtes et paramètres
-error_log("Requête devoirs: " . $assignments_query);
-error_log("Paramètres devoirs: " . print_r([$teacher_id, $teacher_id], true));
-
-error_log("Requête examens: " . $exams_query);
-error_log("Paramètres examens: " . print_r([$teacher_id], true));
-
 // Exécuter les requêtes
 $assignments = db_fetch_all($assignments_query, [$teacher_id, $teacher_id], 'ss');
 $exams = db_fetch_all($exams_query, [$teacher_id], 's');
-
-// Log des résultats
-error_log("Nombre de devoirs trouvés: " . ($assignments ? count($assignments) : 0));
-error_log("Nombre d'examens trouvés: " . ($exams ? count($exams) : 0));
-error_log("Détail des examens trouvés: " . print_r($exams, true));
 
 if ($assignments === false || $exams === false) {
     error_log("Erreur lors de la récupération des données");
@@ -116,33 +106,22 @@ if ($selected_class) {
 
 // Traitement du formulaire d'ajout de devoir
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_assignment'])) {
-    error_log("=== TENTATIVE D'AJOUT DE DEVOIR ===");
-    error_log("POST data: " . print_r($_POST, true));
-    
     $course_id = $_POST['course_id'];
     $title = $_POST['title'];
     $description = $_POST['description'];
     $due_date = $_POST['due_date'];
     $due_time = $_POST['due_time'];
     
-    error_log("Données extraites - Course: $course_id, Title: $title, Date: $due_date, Time: $due_time");
-    error_log("Teacher ID: $teacher_id");
-    
     // Vérifier que le cours appartient bien au professeur
     $check_course_query = "SELECT id, teacherid, classid FROM course WHERE id = ? AND teacherid = ?";
-    error_log("Requête de vérification: " . $check_course_query);
-    
     $check_course = db_fetch_row($check_course_query, [$course_id, $teacher_id], 'ss');
-    error_log("Résultat de la vérification: " . print_r($check_course, true));
     
     if ($check_course) {
         // Générer un ID unique pour le devoir
         $assignment_id = 'ASS-' . uniqid();
-        error_log("ID généré pour le devoir: $assignment_id");
         
         $insert_query = "INSERT INTO examschedule (id, courseid, title, description, examdate, time, created_by) 
                         VALUES (?, ?, ?, ?, ?, ?, ?)";
-        error_log("Requête d'insertion: " . $insert_query);
         
         $params = [
             $assignment_id,
@@ -153,319 +132,280 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_assignment'])) {
             $due_time,
             $teacher_id
         ];
-        error_log("Paramètres d'insertion: " . print_r($params, true));
         
         $result = db_query($insert_query, $params, 'sssssss');
-        error_log("Résultat de l'insertion: " . ($result ? "succès" : "échec"));
         
         if (!$result) {
             error_log("Erreur SQL: " . db_error());
         }
         
         if ($result) {
-            error_log("Redirection vers la page avec succès");
             header("Location: exam.php?class_id=" . $selected_class . "&success=1");
         } else {
-            error_log("Redirection vers la page avec erreur");
             header("Location: exam.php?class_id=" . $selected_class . "&error=insert_failed");
         }
         exit();
     } else {
-        error_log("Erreur: Le cours n'appartient pas au professeur");
         header("Location: exam.php?class_id=" . $selected_class . "&error=unauthorized");
         exit();
     }
 }
-?>
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion des Examens - Système de Gestion Scolaire</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-</head>
-<body class="bg-gray-100 min-h-screen">
-    <!-- Header -->
-    <nav class="bg-white shadow-lg">
-        <div class="max-w-7xl mx-auto px-4">
-            <div class="flex justify-between items-center py-4">
-                <div class="flex items-center">
-                    <img src="../../source/logo.jpg" class="h-12 w-12 object-contain" alt="School Management System"/>
-                    <h1 class="ml-4 text-xl font-semibold text-gray-800">Gestion des Examens</h1>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <a href="index.php" class="text-gray-600 hover:text-gray-800">
-                        <i class="fas fa-home mr-2"></i>Accueil
-                    </a>
-                    <a href="logout.php" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out">
-                        <i class="fas fa-sign-out-alt mr-2"></i>Déconnexion
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
 
-    <!-- Contenu principal -->
-    <div class="max-w-7xl mx-auto px-4 py-8">
-        <!-- Sélection de la classe -->
-        <div class="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 class="text-lg font-semibold text-gray-800 mb-4">Sélectionner une classe</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <?php foreach ($classes as $class): ?>
-                    <a href="?class_id=<?php echo htmlspecialchars($class['id']); ?>" 
-                       class="block p-4 border rounded-lg hover:bg-gray-50 transition duration-150 ease-in-out <?php echo $selected_class === $class['id'] ? 'border-blue-500 bg-blue-50' : 'border-gray-200'; ?>">
-                        <h3 class="font-medium text-gray-900"><?php echo htmlspecialchars($class['name']); ?></h3>
-                        <p class="text-sm text-gray-500"><?php echo htmlspecialchars($class['description'] ?? ''); ?></p>
-                    </a>
-                <?php endforeach; ?>
-            </div>
-        </div>
+// Préparation du contenu pour le template
+$content = '';
 
-        <!-- Après la section de sélection de classe -->
-        <?php if ($selected_class): ?>
-            <!-- Formulaire d'ajout de devoir -->
-            <div class="bg-white rounded-lg shadow p-6 mb-6">
-                <h2 class="text-lg font-semibold text-gray-800 mb-4">Ajouter un devoir</h2>
-                <form method="POST" class="space-y-4">
-                    <input type="hidden" name="add_assignment" value="1">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label for="course_id" class="block text-sm font-medium text-gray-700">Cours</label>
-                            <select name="course_id" id="course_id" required
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                <option value="">Sélectionner un cours</option>
-                                <?php foreach ($courses as $course): ?>
-                                    <option value="<?php echo htmlspecialchars($course['id']); ?>">
-                                        <?php echo htmlspecialchars($course['name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="title" class="block text-sm font-medium text-gray-700">Titre du devoir</label>
-                            <input type="text" name="title" id="title" required
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                   placeholder="Ex: Devoir sur les fonctions">
-                        </div>
-                    </div>
-                    <div>
-                        <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
-                        <textarea name="description" id="description" rows="3" required
-                                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                  placeholder="Description détaillée du devoir..."></textarea>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label for="due_date" class="block text-sm font-medium text-gray-700">Date limite</label>
-                            <input type="date" name="due_date" id="due_date" required
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                   min="<?php echo date('Y-m-d'); ?>">
-                        </div>
-                        <div>
-                            <label for="due_time" class="block text-sm font-medium text-gray-700">Heure limite</label>
-                            <input type="time" name="due_time" id="due_time" required
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        </div>
-                    </div>
-                    <div class="flex justify-end">
-                        <button type="submit" 
-                                class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition duration-150 ease-in-out">
-                            <i class="fas fa-plus mr-2"></i>
-                            Ajouter le devoir
-                        </button>
-                    </div>
-                </form>
-            </div>
+// Messages d'alerte
+if (isset($_GET['success']) && $_GET['success'] == 1) {
+    $content .= '<div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle me-2"></i> Le devoir a été ajouté avec succès.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>';
+}
 
-            <!-- Section des devoirs -->
-            <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
-                <div class="p-6">
-                    <h2 class="text-lg font-semibold text-gray-800 mb-4">Mes devoirs</h2>
-                    <?php if (!empty($assignments)): ?>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <?php foreach ($assignments as $assignment): 
-                                $status_config = [
-                                    'upcoming' => [
-                                        'class' => 'bg-green-100 text-green-800',
-                                        'icon' => 'fa-calendar-plus',
-                                        'text' => 'À venir'
-                                    ],
-                                    'today' => [
-                                        'class' => 'bg-yellow-100 text-yellow-800',
-                                        'icon' => 'fa-calendar-day',
-                                        'text' => 'Aujourd\'hui'
-                                    ],
-                                    'past' => [
-                                        'class' => 'bg-gray-100 text-gray-600',
-                                        'icon' => 'fa-calendar-check',
-                                        'text' => 'Passé'
-                                    ]
-                                ][$assignment['status']];
-                            ?>
-                                <div class="border rounded-lg p-4 hover:shadow-md transition duration-150 ease-in-out">
-                                    <div class="flex justify-between items-start mb-3">
-                                        <div>
-                                            <h3 class="font-medium text-gray-900 mb-1">
-                                                <?php echo htmlspecialchars($assignment['course_name']); ?>
-                                            </h3>
-                                            <?php if (!empty($assignment['title'])): ?>
-                                                <p class="text-sm font-medium text-blue-600">
-                                                    <?php echo htmlspecialchars($assignment['title']); ?>
-                                                </p>
-                                            <?php endif; ?>
-                                            <p class="text-sm text-gray-500">
-                                                <i class="fas fa-chalkboard-teacher mr-1"></i>
-                                                <?php echo htmlspecialchars($assignment['class_name']); ?>
-                                            </p>
-                                        </div>
-                                        <span class="px-2 py-1 rounded-full text-xs font-medium <?php echo $status_config['class']; ?>">
-                                            <i class="fas <?php echo $status_config['icon']; ?> mr-1"></i>
-                                            <?php echo $status_config['text']; ?>
-                                        </span>
-                                    </div>
-                                    <?php if (!empty($assignment['description'])): ?>
-                                        <p class="text-sm text-gray-600 mb-3">
-                                            <?php echo nl2br(htmlspecialchars($assignment['description'])); ?>
-                                        </p>
-                                    <?php endif; ?>
-                                    <div class="text-sm text-gray-500 mb-4">
-                                        <p class="flex items-center">
-                                            <i class="fas fa-calendar mr-2"></i>
-                                            <?php echo $assignment['formatted_date']; ?>
-                                        </p>
-                                        <p class="flex items-center mt-1">
-                                            <i class="fas fa-clock mr-2"></i>
-                                            <?php echo $assignment['formatted_time']; ?>
-                                        </p>
-                                    </div>
-                                    <div class="flex justify-between items-center">
-                                        <a href="view_exam.php?course_id=<?php echo htmlspecialchars($assignment['course_id']); ?>" 
-                                           class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition duration-150 ease-in-out">
-                                            <i class="fas fa-eye mr-2"></i>
-                                            Voir les détails
-                                        </a>
-                                        <?php if ($assignment['status'] === 'upcoming' && $assignment['created_by'] === $teacher_id): ?>
-                                            <button onclick="deleteAssignment('<?php echo $assignment['id']; ?>')" 
-                                                    class="inline-flex items-center px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition duration-150 ease-in-out">
-                                                <i class="fas fa-trash mr-2"></i>
-                                                Supprimer
-                                            </button>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php else: ?>
-                        <div class="text-center py-4 text-gray-500">
-                            Aucun devoir programmé pour cette classe.
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Section des examens -->
-            <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
-                <div class="p-6">
-                    <h2 class="text-lg font-semibold text-gray-800 mb-4">Examens programmés</h2>
-                    <?php if (!empty($exams)): ?>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <?php foreach ($exams as $exam): 
-                                $status_config = [
-                                    'upcoming' => [
-                                        'class' => 'bg-blue-100 text-blue-800',
-                                        'icon' => 'fa-calendar-plus',
-                                        'text' => 'À venir'
-                                    ],
-                                    'today' => [
-                                        'class' => 'bg-yellow-100 text-yellow-800',
-                                        'icon' => 'fa-calendar-day',
-                                        'text' => 'Aujourd\'hui'
-                                    ],
-                                    'past' => [
-                                        'class' => 'bg-gray-100 text-gray-600',
-                                        'icon' => 'fa-calendar-check',
-                                        'text' => 'Passé'
-                                    ]
-                                ][$exam['status']];
-                            ?>
-                                <div class="border rounded-lg p-4 hover:shadow-md transition duration-150 ease-in-out">
-                                    <div class="flex justify-between items-start mb-3">
-                                        <div>
-                                            <h3 class="font-medium text-gray-900 mb-1">
-                                                <?php echo htmlspecialchars($exam['course_name']); ?>
-                                            </h3>
-                                            <?php if (!empty($exam['title'])): ?>
-                                                <p class="text-sm font-medium text-blue-600">
-                                                    <?php echo htmlspecialchars($exam['title']); ?>
-                                                </p>
-                                            <?php endif; ?>
-                                            <p class="text-sm text-gray-500">
-                                                <i class="fas fa-chalkboard-teacher mr-1"></i>
-                                                <?php echo htmlspecialchars($exam['class_name']); ?>
-                                            </p>
-                                        </div>
-                                        <span class="px-2 py-1 rounded-full text-xs font-medium <?php echo $status_config['class']; ?>">
-                                            <i class="fas <?php echo $status_config['icon']; ?> mr-1"></i>
-                                            <?php echo $status_config['text']; ?>
-                                        </span>
-                                    </div>
-                                    <?php if (!empty($exam['description'])): ?>
-                                        <p class="text-sm text-gray-600 mb-3">
-                                            <?php echo nl2br(htmlspecialchars($exam['description'])); ?>
-                                        </p>
-                                    <?php endif; ?>
-                                    <div class="text-sm text-gray-500 mb-4">
-                                        <p class="flex items-center">
-                                            <i class="fas fa-calendar mr-2"></i>
-                                            <?php echo $exam['formatted_date']; ?>
-                                        </p>
-                                        <p class="flex items-center mt-1">
-                                            <i class="fas fa-clock mr-2"></i>
-                                            <?php echo $exam['formatted_time']; ?>
-                                        </p>
-                                    </div>
-                                    <div class="flex justify-end">
-                                        <a href="view_exam.php?course_id=<?php echo htmlspecialchars($exam['course_id']); ?>" 
-                                           class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition duration-150 ease-in-out">
-                                            <i class="fas fa-eye mr-2"></i>
-                                            Voir les détails
-                                        </a>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php else: ?>
-                        <div class="text-center py-4 text-gray-500">
-                            Aucun examen programmé pour cette classe.
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        <?php endif; ?>
+if (isset($_GET['error'])) {
+    $error_messages = [
+        'insert_failed' => 'Une erreur est survenue lors de l\'ajout du devoir.',
+        'unauthorized' => 'Vous n\'avez pas l\'autorisation d\'ajouter un devoir pour ce cours.',
+    ];
+    
+    $error_message = $error_messages[$_GET['error']] ?? 'Une erreur est survenue.';
+    
+    $content .= '<div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i> ' . $error_message . '
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>';
+}
+$content .= '<!-- Sélection de la classe -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white">
+        <h5 class="card-title mb-0">Sélectionner une classe</h5>
     </div>
+    <div class="card-body">
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">';
 
-    <!-- Footer -->
-    <footer class="bg-white shadow-lg mt-8">
-        <div class="max-w-7xl mx-auto py-4 px-4">
-            <p class="text-center text-gray-500 text-sm">
-                © <?php echo date('Y'); ?> Système de Gestion Scolaire. Tous droits réservés.
-            </p>
+if (empty($classes)) {
+    $content .= '<div class="col-12">
+        <div class="alert alert-info mb-0">
+            <i class="fas fa-info-circle me-2"></i>Aucune classe assignée.
         </div>
-    </footer>
+    </div>';
+} else {
+    foreach ($classes as $class) {
+        $isActive = $selected_class === $class["id"];
+        $content .= '<div class="col">
+            <a href="?class_id=' . htmlspecialchars($class["id"]) . '" class="text-decoration-none">
+                <div class="card h-100 ' . ($isActive ? "border-primary" : "border-light") . ' hover-shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">' . htmlspecialchars($class["name"]) . '</h5>
+                    </div>
+                    ' . ($isActive ? '<div class="card-footer bg-primary bg-opacity-10 border-top-0 text-primary"><small><i class="fas fa-check-circle me-1"></i>Sélectionnée</small></div>' : '') . '
+                </div>
+            </a>
+        </div>';
+    }
+}
 
-    <script>
-        function updateFilters() {
-            const form = document.getElementById('filterForm');
-            form.submit();
-        }
+$content .= '</div>
+    </div>
+</div>';
 
-        function deleteAssignment(assignmentId) {
-            if (confirm('Êtes-vous sûr de vouloir supprimer ce devoir ?')) {
-                window.location.href = `delete_assignment.php?id=${assignmentId}`;
-            }
+
+if ($selected_class) {
+    // Informations de la classe sélectionnée
+    $class_info = db_fetch_row(
+        "SELECT * FROM class WHERE id = ?",
+        [$selected_class],
+        's'
+    );
+    
+    if ($class_info) {
+        $content .= '<div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="h4 mb-0">Classe: <span class="text-primary">' . htmlspecialchars($class_info['name']) . '</span></h2>
+            <a href="exam.php" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i> Toutes les classes</a>
+        </div>';
+    }
+    
+    // Formulaire d'ajout de devoir
+    $content .= '<div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Ajouter un devoir</h5>
+            <span class="badge bg-primary">' . count($courses) . ' cours disponibles</span>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                <input type="hidden" name="add_assignment" value="1">
+                <div class="row mb-3">
+                    <div class="col-md-6 mb-3 mb-md-0">
+                        <label for="course_id" class="form-label">Cours</label>
+                        <select name="course_id" id="course_id" class="form-select" required>
+                            <option value="">Sélectionner un cours</option>';
+                            
+    foreach ($courses as $course) {
+        $content .= '<option value="' . htmlspecialchars($course['id']) . '">' . htmlspecialchars($course['name']) . '</option>';
+    }
+                            
+    $content .= '</select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="title" class="form-label">Titre du devoir</label>
+                        <input type="text" name="title" id="title" class="form-control" required placeholder="Ex: Devoir sur les fonctions">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description</label>
+                    <textarea name="description" id="description" rows="3" class="form-control" required placeholder="Description détaillée du devoir..."></textarea>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6 mb-3 mb-md-0">
+                        <label for="due_date" class="form-label">Date limite</label>
+                        <input type="date" name="due_date" id="due_date" class="form-control" required min="' . date('Y-m-d') . '">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="due_time" class="form-label">Heure limite</label>
+                        <input type="time" name="due_time" id="due_time" class="form-control" required>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>Ajouter le devoir
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>';
+    
+    // Section des devoirs
+    $content .= '<div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Mes devoirs</h5>
+            ' . (!empty($assignments) ? '<span class="badge bg-success">' . count($assignments) . ' devoirs</span>' : '') . '
+        </div>
+        <div class="card-body">';
+    
+    if (!empty($assignments)) {
+        $content .= '<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">';
+        
+        foreach ($assignments as $assignment) {
+            $status_map = [
+                'upcoming' => ['class' => 'bg-success', 'text' => 'À venir', 'icon' => 'fa-calendar-plus'],
+                'today' => ['class' => 'bg-warning', 'text' => 'Aujourd\'hui', 'icon' => 'fa-calendar-day'],
+                'past' => ['class' => 'bg-secondary', 'text' => 'Passé', 'icon' => 'fa-calendar-check']
+            ];
+            
+            $status = $status_map[$assignment['status']];
+            
+            $content .= '<div class="col">
+                <div class="card h-100 border-light hover-shadow">
+                    <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="card-title mb-1">' . htmlspecialchars($assignment['course_name']) . '</h5>
+                            ' . (!empty($assignment['title']) ? '<h6 class="text-primary mb-0">' . htmlspecialchars($assignment['title']) . '</h6>' : '') . '
+                        </div>
+                        <span class="badge ' . $status['class'] . ' rounded-pill">
+                            <i class="fas ' . $status['icon'] . ' me-1"></i>' . $status['text'] . '
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        ' . (!empty($assignment['description']) ? '<p class="card-text small">' . nl2br(htmlspecialchars($assignment['description'])) . '</p>' : '') . '
+                        <div class="d-flex justify-content-between mt-3 small text-muted">
+                            <div><i class="fas fa-calendar me-1"></i> ' . $assignment['formatted_date'] . '</div>
+                            <div><i class="fas fa-clock me-1"></i> ' . $assignment['formatted_time'] . '</div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-white border-top-0 d-flex ' . ($assignment['status'] === 'upcoming' && $assignment['created_by'] === $teacher_id ? 'justify-content-between' : 'justify-content-end') . '">
+                        <a href="view_exam.php?course_id=' . htmlspecialchars($assignment['course_id']) . '" class="btn btn-sm btn-primary">
+                            <i class="fas fa-eye me-1"></i> Détails
+                        </a>
+                        ' . ($assignment['status'] === 'upcoming' && $assignment['created_by'] === $teacher_id ? '<button onclick="deleteAssignment(\'' . $assignment['id'] . '\')" class="btn btn-sm btn-danger"><i class="fas fa-trash me-1"></i> Supprimer</button>' : '') . '
+                    </div>
+                </div>
+            </div>';
         }
-    </script>
-</body>
-</html>
+        
+        $content .= '</div>';
+    } else {
+        $content .= '<div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>Aucun devoir programmé pour cette classe.
+        </div>';
+    }
+    
+    $content .= '</div>
+    </div>';
+    
+    // Section des examens
+    $content .= '<div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Examens programmés</h5>
+            ' . (!empty($exams) ? '<span class="badge bg-info">' . count($exams) . ' examens</span>' : '') . '
+        </div>
+        <div class="card-body">';
+    
+    if (!empty($exams)) {
+        $content .= '<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">';
+        
+        foreach ($exams as $exam) {
+            $status_map = [
+                'upcoming' => ['class' => 'bg-info', 'text' => 'À venir', 'icon' => 'fa-calendar-plus'],
+                'today' => ['class' => 'bg-warning', 'text' => 'Aujourd\'hui', 'icon' => 'fa-calendar-day'],
+                'past' => ['class' => 'bg-secondary', 'text' => 'Passé', 'icon' => 'fa-calendar-check']
+            ];
+            
+            $status = $status_map[$exam['status']];
+            
+            $content .= '<div class="col">
+                <div class="card h-100 border-light hover-shadow">
+                    <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="card-title mb-1">' . htmlspecialchars($exam['course_name']) . '</h5>
+                            ' . (!empty($exam['title']) ? '<h6 class="text-primary mb-0">' . htmlspecialchars($exam['title']) . '</h6>' : '') . '
+                        </div>
+                        <span class="badge ' . $status['class'] . ' rounded-pill">
+                            <i class="fas ' . $status['icon'] . ' me-1"></i>' . $status['text'] . '
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        ' . (!empty($exam['description']) ? '<p class="card-text small">' . nl2br(htmlspecialchars($exam['description'])) . '</p>' : '') . '
+                        <div class="d-flex justify-content-between mt-3 small text-muted">
+                            <div><i class="fas fa-calendar me-1"></i> ' . $exam['formatted_date'] . '</div>
+                            <div><i class="fas fa-clock me-1"></i> ' . $exam['formatted_time'] . '</div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-white border-top-0 text-end">
+                        <a href="view_exam.php?course_id=' . htmlspecialchars($exam['course_id']) . '" class="btn btn-sm btn-primary">
+                            <i class="fas fa-eye me-1"></i> Détails
+                        </a>
+                    </div>
+                </div>
+            </div>';
+        }
+        
+        $content .= '</div>';
+    } else {
+        $content .= '<div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>Aucun examen programmé pour cette classe.
+        </div>';
+    }
+    
+    $content .= '</div>
+    </div>';
+}
+
+// Ajouter du style CSS personnalisé
+$content .= '<style>
+    .hover-shadow:hover {
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important;
+        transform: translateY(-2px);
+        transition: all 0.3s ease;
+    }
+</style>
+
+<script>
+    function deleteAssignment(assignmentId) {
+        if (confirm("\u00cates-vous s\u00fbr de vouloir supprimer ce devoir ?")) {
+            window.location.href = `delete_assignment.php?id=${assignmentId}`;
+        }
+    }
+</script>';
+
+// Inclure le template
+include('templates/layout.php');

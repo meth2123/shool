@@ -48,40 +48,41 @@ $courses_result = $stmt->get_result();
 $has_courses = $courses_result->num_rows > 0;
 ?>
 
-<div class="container mx-auto px-4 py-8">
-    <div class="max-w-2xl mx-auto">
-        <!-- En-tête -->
-        <div class="mb-8">
-            <h2 class="text-3xl font-bold text-gray-800 mb-4">Créer un Planning d'Examen</h2>
-            <p class="text-gray-600">Remplissez le formulaire ci-dessous pour créer un nouveau planning d'examen</p>
-        </div>
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-8">
+            <!-- En-tête -->
+            <div class="mb-4">
+                <h2>Créer un Planning d'Examen</h2>
+                <p class="text-muted">Remplissez le formulaire ci-dessous pour créer un nouveau planning d'examen</p>
+            </div>
 
         <!-- Messages de notification -->
         <?php if($success_message): ?>
-        <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6" role="alert">
-            <p><?php echo $success_message; ?></p>
+        <div class="alert alert-success mb-4" role="alert">
+            <?php echo $success_message; ?>
         </div>
         <?php endif; ?>
 
         <?php if($error_message): ?>
-        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
-            <p><?php echo $error_message; ?></p>
+        <div class="alert alert-danger mb-4" role="alert">
+            <?php echo $error_message; ?>
         </div>
         <?php endif; ?>
 
         <?php if(!$has_courses): ?>
-        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-            <div class="flex">
-                <div class="flex-shrink-0">
-                    <i class="fas fa-exclamation-circle text-yellow-400"></i>
+        <div class="alert alert-warning mb-4">
+            <div class="d-flex">
+                <div class="me-3">
+                    <i class="fas fa-exclamation-circle"></i>
                 </div>
-                <div class="ml-3">
-                    <p class="text-sm text-yellow-700">
+                <div>
+                    <p class="mb-2">
                         Vous n'avez pas encore créé de cours. Veuillez d'abord créer un cours avant de planifier un examen.
                     </p>
-                    <p class="mt-2">
-                        <a href="course.php" class="text-yellow-700 font-medium hover:text-yellow-600">
-                            <i class="fas fa-arrow-right mr-1"></i>
+                    <p class="mb-0">
+                        <a href="course.php" class="alert-link">
+                            <i class="fas fa-arrow-right me-1"></i>
                             Aller à la gestion des cours
                         </a>
                     </p>
@@ -91,37 +92,38 @@ $has_courses = $courses_result->num_rows > 0;
         <?php endif; ?>
 
         <!-- Formulaire -->
-        <form action="" method="post" class="bg-white shadow-lg rounded-lg p-6">
-            <div class="space-y-6">
+        <form action="" method="post" class="card shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">Informations de l'examen</h5>
+            </div>
+            <div class="card-body">
                 <!-- ID de l'examen -->
-                <div>
-                    <label for="id" class="block text-sm font-medium text-gray-700 mb-2">ID de l'examen</label>
+                <div class="mb-3">
+                    <label for="id" class="form-label">ID de l'examen</label>
                     <input type="text" name="id" id="id" required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        class="form-control"
                         placeholder="Ex: EXAM2024-001">
                 </div>
 
                 <!-- Date de l'examen -->
-                <div>
-                    <label for="examDate" class="block text-sm font-medium text-gray-700 mb-2">Date de l'examen</label>
+                <div class="mb-3">
+                    <label for="examDate" class="form-label">Date de l'examen</label>
                     <input type="date" name="examDate" id="examDate" required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        class="form-control">
                 </div>
 
                 <!-- Heure de l'examen -->
-                <div>
-                    <label for="examTime" class="block text-sm font-medium text-gray-700 mb-2">Horaire de l'examen</label>
-                    <div class="flex space-x-4">
-                        <input type="time" name="examTime" id="examTime" required
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    </div>
+                <div class="mb-3">
+                    <label for="examTime" class="form-label">Horaire de l'examen</label>
+                    <input type="time" name="examTime" id="examTime" required
+                        class="form-control">
                 </div>
 
                 <!-- Cours -->
-                <div>
-                    <label for="courseId" class="block text-sm font-medium text-gray-700 mb-2">Cours</label>
+                <div class="mb-3">
+                    <label for="courseId" class="form-label">Cours</label>
                     <select name="courseId" id="courseId" required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        class="form-select"
                         <?php echo !$has_courses ? 'disabled' : ''; ?>>
                         <option value="">Sélectionnez un cours</option>
                         <?php while($course = $courses_result->fetch_assoc()): ?>
@@ -131,24 +133,22 @@ $has_courses = $courses_result->num_rows > 0;
                         <?php endwhile; ?>
                     </select>
                     <?php if(!$has_courses): ?>
-                    <p class="mt-1 text-sm text-gray-500">Vous devez d'abord créer un cours avant de pouvoir planifier un examen.</p>
+                    <div class="form-text text-muted">Vous devez d'abord créer un cours avant de pouvoir planifier un examen.</div>
                     <?php endif; ?>
                 </div>
-
-                <!-- Boutons -->
-                <div class="flex justify-end space-x-4 pt-4">
-                    <a href="examSchedule.php" 
-                        class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                        Annuler
-                    </a>
-                    <button type="submit" name="submit" value="submit"
-                        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                        <?php echo !$has_courses ? 'disabled' : ''; ?>>
-                        Créer le planning
-                    </button>
-                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-end gap-2">
+                <a href="examSchedule.php" class="btn btn-outline-secondary">
+                    <i class="fas fa-times me-2"></i>Annuler
+                </a>
+                <button type="submit" name="submit" value="submit"
+                    class="btn btn-primary"
+                    <?php echo !$has_courses ? 'disabled' : ''; ?>>
+                    <i class="fas fa-save me-2"></i>Créer le planning
+                </button>
             </div>
         </form>
+        </div>
     </div>
 </div>
 

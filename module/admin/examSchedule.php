@@ -44,77 +44,97 @@ try {
 
 ?>
 
-<div class="container mx-auto px-4">
+<div class="container py-4">
     <!-- En-tête de la page -->
-    <div class="mb-8">
-        <h2 class="text-3xl font-bold text-gray-800 mb-4">Gestion des Examens</h2>
-        <p class="text-gray-600">Gérez les plannings et les horaires des examens</p>
+    <div class="mb-4">
+        <h2 class="mb-2">Gestion des Examens</h2>
+        <p class="text-muted">Gérez les plannings et les horaires des examens</p>
     </div>
 
     <!-- Grille des actions principales -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="row g-4 mb-4">
         <!-- Carte Créer -->
-        <a href="createExamSchedule.php" class="block">
-            <div class="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition duration-300">
-                <div class="text-blue-500 mb-4">
-                    <i class="fas fa-plus-circle text-4xl"></i>
+        <div class="col-md-4">
+            <a href="createExamSchedule.php" class="text-decoration-none">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="text-primary mb-3">
+                            <i class="fas fa-plus-circle fa-3x"></i>
+                        </div>
+                        <h5 class="card-title">Créer un Planning</h5>
+                        <p class="card-text text-muted">Planifiez de nouveaux examens et définissez leurs horaires</p>
+                    </div>
                 </div>
-                <h3 class="text-xl font-semibold text-gray-800 mb-2">Créer un Planning</h3>
-                <p class="text-gray-600">Planifiez de nouveaux examens et définissez leurs horaires</p>
-            </div>
-        </a>
+            </a>
+        </div>
 
         <!-- Carte Consulter -->
-        <a href="viewExamSchedule.php" class="block">
-            <div class="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition duration-300">
-                <div class="text-green-500 mb-4">
-                    <i class="fas fa-calendar-alt text-4xl"></i>
+        <div class="col-md-4">
+            <a href="viewExamSchedule.php" class="text-decoration-none">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="text-success mb-3">
+                            <i class="fas fa-calendar-alt fa-3x"></i>
+                        </div>
+                        <h5 class="card-title">Consulter les Plannings</h5>
+                        <p class="card-text text-muted">Visualisez tous les examens planifiés</p>
+                    </div>
                 </div>
-                <h3 class="text-xl font-semibold text-gray-800 mb-2">Consulter les Plannings</h3>
-                <p class="text-gray-600">Visualisez tous les examens planifiés</p>
-            </div>
-        </a>
+            </a>
+        </div>
 
         <!-- Carte Modifier -->
-        <a href="updateExamSchedule.php" class="block">
-            <div class="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition duration-300">
-                <div class="text-orange-500 mb-4">
-                    <i class="fas fa-edit text-4xl"></i>
+        <div class="col-md-4">
+            <a href="updateExamSchedule.php" class="text-decoration-none">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="text-warning mb-3">
+                            <i class="fas fa-edit fa-3x"></i>
+                        </div>
+                        <h5 class="card-title">Modifier un Planning</h5>
+                        <p class="card-text text-muted">Mettez à jour les informations des examens existants</p>
+                    </div>
                 </div>
-                <h3 class="text-xl font-semibold text-gray-800 mb-2">Modifier un Planning</h3>
-                <p class="text-gray-600">Mettez à jour les informations des examens existants</p>
-            </div>
-        </a>
+            </a>
+        </div>
     </div>
 
     <!-- Section des statistiques -->
-    <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
-        <h3 class="text-xl font-semibold text-gray-800 mb-4">Aperçu des Examens</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="p-4 bg-blue-50 rounded-lg">
-                <div class="flex items-center">
-                    <div class="text-blue-500 mr-4">
-                        <i class="fas fa-calendar-check text-2xl"></i>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-600">Examens à venir</p>
-                        <h4 class="text-xl font-bold text-gray-800">
-                            <?php echo $upcoming_exams; ?>
-                        </h4>
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="card-title mb-0">Aperçu des Examens</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="p-3 bg-light rounded">
+                        <div class="d-flex align-items-center">
+                            <div class="text-primary me-3">
+                                <i class="fas fa-calendar-check fa-2x"></i>
+                            </div>
+                            <div>
+                                <p class="text-muted mb-0 small">Examens à venir</p>
+                                <h4 class="mb-0">
+                                    <?php echo $upcoming_exams; ?>
+                                </h4>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-            
-            <div class="p-4 bg-green-50 rounded-lg">
-                <div class="flex items-center">
-                    <div class="text-green-500 mr-4">
-                        <i class="fas fa-clock text-2xl"></i>
-                    </div>
-                    <div>
-                        <p class="text-sm text-gray-600">En cours</p>
-                        <h4 class="text-xl font-bold text-gray-800">
-                            <?php echo $current_exams; ?>
-                        </h4>
+                
+                <div class="col-md-6">
+                    <div class="p-3 bg-light rounded">
+                        <div class="d-flex align-items-center">
+                            <div class="text-success me-3">
+                                <i class="fas fa-clock fa-2x"></i>
+                            </div>
+                            <div>
+                                <p class="text-muted mb-0 small">En cours</p>
+                                <h4 class="mb-0">
+                                    <?php echo $current_exams; ?>
+                                </h4>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

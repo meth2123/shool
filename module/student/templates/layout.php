@@ -10,6 +10,10 @@ if (!$student_info) {
     header("Location: ../../?error=student_not_found");
     exit();
 }
+
+// Initialiser le composant de notification
+require_once __DIR__ . '/../../../components/NotificationBell.php';
+$notificationBell = new NotificationBell($link, $check, 'student');
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -30,6 +34,7 @@ if (!$student_info) {
                     <h1 class="ml-4 text-xl font-semibold text-gray-800">Système de Gestion Scolaire</h1>
                 </div>
                 <div class="flex items-center space-x-4">
+                    <?php echo $notificationBell->render(); ?>
                     <span class="text-gray-600">Bonjour, <?php echo htmlspecialchars($student_info['name']); ?></span>
                     <a href="logout.php" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out">
                         <i class="fas fa-sign-out-alt mr-2"></i>Déconnexion

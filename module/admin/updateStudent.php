@@ -5,53 +5,69 @@ include_once('includes/admin_utils.php');
 $admin_id = $_SESSION['login_id'];
 
 $content = '
-<div class="container mx-auto px-4 py-8">
-    <div class="bg-white rounded-lg shadow-lg p-6">
-        <h2 class="text-2xl font-bold mb-6">Modifier un étudiant</h2>
-        
-        <!-- Message de statut -->
-        <div id="statusMessage" class="mb-4 hidden"></div>
-        
-        <!-- Barre de recherche -->
-        <div class="mb-8">
-            <label for="searchId" class="block text-sm font-medium text-gray-700 mb-2">Rechercher un étudiant</label>
-            <div class="flex gap-4">
-                <input type="text" id="searchId" name="searchId" 
-                       placeholder="Rechercher par ID ou nom..." 
-                       onkeyup="getStudentForUpdate(this.value);"
-                       class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-            </div>
-        </div>
+<div class="container py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h4 class="card-title mb-0">Modifier un étudiant</h4>
+                </div>
+                <div class="card-body">
+                    <!-- Message de statut -->
+                    <div id="statusMessage" class="alert d-none mb-4"></div>
+                    
+                    <!-- Barre de recherche -->
+                    <div class="mb-4">
+                        <label for="searchId" class="form-label">Rechercher un étudiant</label>
+                        <div class="input-group mb-3">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input type="text" id="searchId" name="searchId" 
+                                   class="form-control" 
+                                   placeholder="Rechercher par ID ou nom..." 
+                                   onkeyup="getStudentForUpdate(this.value);">
+                        </div>
+                    </div>
 
-        <!-- Tableau des résultats -->
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mot de passe</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Téléphone</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Genre</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date de naissance</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date d\'admission</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adresse</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Parent</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Classe</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Photo</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="updateStudentData" class="bg-white divide-y divide-gray-200">
-                    <!-- Les résultats de recherche seront insérés ici -->
-                    <tr>
-                        <td colspan="13" class="px-6 py-4 text-center text-gray-500">
-                            Commencez à taper pour rechercher un étudiant...
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+                    <!-- Tableau des résultats -->
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nom</th>
+                                    <th>Mot de passe</th>
+                                    <th>Téléphone</th>
+                                    <th>Email</th>
+                                    <th>Genre</th>
+                                    <th>Date de naissance</th>
+                                    <th>Date d\'admission</th>
+                                    <th>Adresse</th>
+                                    <th>ID Parent</th>
+                                    <th>ID Classe</th>
+                                    <th>Photo</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="updateStudentData">
+                                <!-- Les résultats de recherche seront insérés ici -->
+                                <tr>
+                                    <td colspan="13" class="text-center text-muted">
+                                        <div class="py-4">
+                                            <i class="fas fa-search fa-2x mb-3"></i>
+                                            <p>Commencez à taper pour rechercher un étudiant...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-white">
+                    <a href="manageStudent.php" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Retour à la gestion des étudiants
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -82,12 +98,12 @@ function submitForm(formId) {
 
 function showMessage(message, type = "success") {
     const statusMessage = document.getElementById("statusMessage");
-    statusMessage.className = `mb-4 p-4 rounded ${type === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`;
+    statusMessage.className = `alert alert-${type === "success" ? "success" : "danger"} mb-4`;
     statusMessage.textContent = message;
-    statusMessage.classList.remove("hidden");
+    statusMessage.classList.remove("d-none");
     
     setTimeout(() => {
-        statusMessage.classList.add("hidden");
+        statusMessage.classList.add("d-none");
     }, 5000);
 }
 

@@ -29,6 +29,23 @@ if(isset($_GET['error'])) {
         case 'login':
             $error_message = "Identifiant ou mot de passe incorrect.";
             break;
+        case 'account_inactive':
+            $status = isset($_GET['status']) ? $_GET['status'] : '';
+            
+            switch($status) {
+                case 'pending':
+                    $error_message = "Votre paiement est en attente de confirmation. Veuillez réessayer ultérieurement ou contacter le support.";
+                    break;
+                case 'failed':
+                    $error_message = "Votre dernier paiement a échoué. Veuillez renouveler votre abonnement pour accéder à votre compte.";
+                    break;
+                case 'expired':
+                    $error_message = "Votre abonnement a expiré. Veuillez le renouveler pour continuer à utiliser nos services.";
+                    break;
+                default:
+                    $error_message = "Votre compte a été désactivé. Veuillez contacter l'administrateur ou renouveler votre abonnement.";
+            }
+            break;
         default:
             $error_message = "Une erreur est survenue. Veuillez réessayer.";
     }
@@ -40,200 +57,224 @@ if(isset($_GET['error'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SchoolManager - Connexion</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-container {
+            max-width: 450px;
+            width: 100%;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+        .form-control:focus {
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+            border-color: #86b7fe;
+        }
+        .btn-primary {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+        }
+        .btn-success {
+            background-color: #198754;
+            border-color: #198754;
+        }
+    </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center">
-    <div class="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-lg">
+<body>
+    <div class="login-container">
         <!-- Logo et Titre -->
-        <div class="text-center">
-            <a href="index.php" class="inline-block">
-                <img src="source/logo.jpg" class="mx-auto h-24 w-24 object-contain" alt="Logo"/>
+        <div class="text-center mb-4">
+            <a href="index.php" class="d-inline-block">
+                <img src="source/logo.jpg" class="img-fluid" style="max-height: 100px;" alt="Logo"/>
             </a>
-            <h2 class="mt-6 text-3xl font-extrabold text-gray-900">
+            <h2 class="mt-3 fw-bold">
                 Connexion
             </h2>
-            <p class="mt-2 text-sm text-gray-600">
+            <p class="text-muted small">
                 Accédez à votre espace de gestion
             </p>
             
             <?php if($login_type == "error"): ?>
-                <div class="mt-2 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
+                <div class="alert alert-danger mt-3" role="alert">
                     <?php echo htmlspecialchars($login_message); ?>
                 </div>
             <?php elseif($login_type == "info"): ?>
-                <div class="mt-2 p-2 bg-blue-100 border border-blue-400 text-blue-700 rounded">
+                <div class="alert alert-info mt-3" role="alert">
                     <?php echo htmlspecialchars($login_message); ?>
                 </div>
             <?php endif; ?>
             
             <?php if($reset_success): ?>
-                <div class="mt-2 p-2 bg-green-100 border border-green-400 text-green-700 rounded">
+                <div class="alert alert-success mt-3" role="alert">
                     Mot de passe modifié avec succès !
                 </div>
             <?php endif; ?>
             
             <?php if($reset_error): ?>
-                <div class="mt-2 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
+                <div class="alert alert-danger mt-3" role="alert">
                     <?php echo htmlspecialchars($reset_error); ?>
                 </div>
             <?php endif; ?>
 
             <?php if(isset($error_message) && $error_message): ?>
-                <div class="mt-2 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
+                <div class="alert alert-danger mt-3" role="alert">
                     <?php echo htmlspecialchars($error_message); ?>
                 </div>
             <?php endif; ?>
         </div>
 
         <!-- Formulaire de connexion -->
-        <form id="loginForm" class="mt-8 space-y-6" action="service/check.access.php" method="post">
-            <div class="rounded-md shadow-sm -space-y-px">
-                <div>
-                    <label for="myid" class="sr-only">Identifiant</label>
-                    <input id="myid" name="myid" type="text" required 
-                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" 
-                        placeholder="Votre identifiant">
+        <form id="loginForm" action="service/check.access.php" method="post" class="mb-3">
+            <div class="mb-3">
+                <label for="myid" class="form-label">Identifiant</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-user"></i></span>
+                    <input id="myid" name="myid" type="text" class="form-control" placeholder="Votre identifiant" required>
                 </div>
-                <div>
-                    <label for="mypassword" class="sr-only">Mot de passe</label>
-                    <input id="mypassword" name="mypassword" type="password" required 
-                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" 
-                        placeholder="Votre mot de passe">
+            </div>
+            <div class="mb-4">
+                <label for="mypassword" class="form-label">Mot de passe</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                    <input id="mypassword" name="mypassword" type="password" class="form-control" placeholder="Votre mot de passe" required>
                 </div>
             </div>
 
-            <div>
-                <button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                    <span class="absolute left-0 inset-y-0 flex items-center pl-3">
-                        <i class="fas fa-sign-in-alt"></i>
-                    </span>
-                    Se connecter
+            <div class="d-grid gap-2 mb-3">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-sign-in-alt me-2"></i>Se connecter
                 </button>
             </div>
             
-            <div class="text-center space-y-2">
-                <button type="button" onclick="showResetForm()" class="text-sm text-blue-600 hover:text-blue-500">
-                    Changer mon mot de passe
-                </button>
-                <button type="button" onclick="showForgotForm()" class="text-sm text-blue-600 hover:text-blue-500 block">
+            <div class="text-center">
+                <button type="button" onclick="showForgotForm()" class="btn btn-link p-0 text-decoration-none">
                     Mot de passe oublié ?
                 </button>
             </div>
         </form>
 
         <!-- Formulaire de changement de mot de passe -->
-        <form id="resetForm" class="mt-8 space-y-6 hidden" action="service/reset_password.php" method="post">
-            <div class="rounded-md shadow-sm -space-y-px">
-                <div>
-                    <label for="reset_id" class="sr-only">Identifiant</label>
-                    <input id="reset_id" name="user_id" type="text" required 
-                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" 
-                        placeholder="Votre identifiant">
+        <form id="resetForm" class="d-none mb-3" action="service/reset_password.php" method="post">
+            <div class="mb-3">
+                <label for="reset_id" class="form-label">Identifiant</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-user"></i></span>
+                    <input id="reset_id" name="user_id" type="text" class="form-control" placeholder="Votre identifiant" required>
                 </div>
-                <div>
-                    <label for="current_password" class="sr-only">Mot de passe actuel</label>
-                    <input id="current_password" name="current_password" type="password" required 
-                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" 
-                        placeholder="Mot de passe actuel">
+            </div>
+            <div class="mb-3">
+                <label for="current_password" class="form-label">Mot de passe actuel</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                    <input id="current_password" name="current_password" type="password" class="form-control" placeholder="Mot de passe actuel" required>
                 </div>
-                <div>
-                    <label for="new_password" class="sr-only">Nouveau mot de passe</label>
-                    <input id="new_password" name="new_password" type="password" required 
-                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" 
-                        placeholder="Nouveau mot de passe">
+            </div>
+            <div class="mb-3">
+                <label for="new_password" class="form-label">Nouveau mot de passe</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-key"></i></span>
+                    <input id="new_password" name="new_password" type="password" class="form-control" placeholder="Nouveau mot de passe" required>
                 </div>
-                <div>
-                    <label for="confirm_password" class="sr-only">Confirmer le mot de passe</label>
-                    <input id="confirm_password" name="confirm_password" type="password" required 
-                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" 
-                        placeholder="Confirmer le nouveau mot de passe">
+            </div>
+            <div class="mb-4">
+                <label for="confirm_password" class="form-label">Confirmer le mot de passe</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-check"></i></span>
+                    <input id="confirm_password" name="confirm_password" type="password" class="form-control" placeholder="Confirmer le nouveau mot de passe" required>
                 </div>
             </div>
 
-            <div>
-                <button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                    <span class="absolute left-0 inset-y-0 flex items-center pl-3">
-                        <i class="fas fa-key"></i>
-                    </span>
-                    Changer le mot de passe
+            <div class="d-grid gap-2 mb-3">
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-check me-2"></i>Changer mon mot de passe
                 </button>
             </div>
             
             <div class="text-center">
-                <button type="button" onclick="showLoginForm()" class="text-sm text-blue-600 hover:text-blue-500">
+                <button type="button" onclick="showLoginForm()" class="btn btn-link p-0 text-decoration-none">
                     Retour à la connexion
                 </button>
             </div>
         </form>
 
         <!-- Formulaire de mot de passe oublié -->
-        <form id="forgotForm" class="mt-8 space-y-6 hidden" action="service/forgot_password.php" method="post">
-            <div class="rounded-md shadow-sm -space-y-px">
-                <div>
-                    <label for="forgot_id" class="sr-only">Identifiant</label>
-                    <input id="forgot_id" name="user_id" type="text" required 
-                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" 
-                        placeholder="Votre identifiant">
+        <form id="forgotForm" class="d-none mb-3" action="service/forgot_password.php" method="post">
+            <div class="mb-3">
+                <label for="forgot_id" class="form-label">Identifiant</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-user"></i></span>
+                    <input id="forgot_id" name="user_id" type="text" class="form-control" placeholder="Votre identifiant" required>
                 </div>
-                <div>
-                    <label for="email" class="sr-only">Email</label>
-                    <input id="email" name="email" type="email" required 
-                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" 
-                        placeholder="Votre email">
+            </div>
+            <div class="mb-4">
+                <label for="forgot_email" class="form-label">Email</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                    <input id="forgot_email" name="email" type="email" class="form-control" placeholder="Votre email" required>
                 </div>
             </div>
 
-            <div>
-                <button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500">
-                    <span class="absolute left-0 inset-y-0 flex items-center pl-3">
-                        <i class="fas fa-key"></i>
-                    </span>
-                    Réinitialiser le mot de passe
+            <div class="d-grid gap-2 mb-3">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-paper-plane me-2"></i>Envoyer le code de réinitialisation
                 </button>
             </div>
             
             <div class="text-center">
-                <button type="button" onclick="showLoginForm()" class="text-sm text-blue-600 hover:text-blue-500">
+                <button type="button" onclick="showLoginForm()" class="btn btn-link p-0 text-decoration-none">
                     Retour à la connexion
                 </button>
             </div>
         </form>
 
         <!-- Formulaire de réinitialisation avec code -->
-        <form id="resetCodeForm" class="mt-8 space-y-6 hidden" action="service/reset_with_code.php" method="post">
-            <div class="rounded-md shadow-sm -space-y-px">
-                <div>
-                    <label for="reset_code" class="sr-only">Code de réinitialisation</label>
-                    <input id="reset_code" name="reset_code" type="text" required 
-                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" 
-                        placeholder="Code reçu par email">
+        <form id="resetCodeForm" class="d-none mb-3" action="service/reset_with_code.php" method="post">
+            <div class="mb-3">
+                <label for="reset_code_id" class="form-label">Identifiant</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-user"></i></span>
+                    <input id="reset_code_id" name="user_id" type="text" class="form-control" placeholder="Votre identifiant" required>
                 </div>
-                <div>
-                    <label for="new_password_reset" class="sr-only">Nouveau mot de passe</label>
-                    <input id="new_password_reset" name="new_password" type="password" required 
-                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" 
-                        placeholder="Nouveau mot de passe">
+            </div>
+            <div class="mb-3">
+                <label for="reset_code" class="form-label">Code de réinitialisation</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-key"></i></span>
+                    <input id="reset_code" name="reset_code" type="text" class="form-control" placeholder="Code de réinitialisation" required>
                 </div>
-                <div>
-                    <label for="confirm_password_reset" class="sr-only">Confirmer le mot de passe</label>
-                    <input id="confirm_password_reset" name="confirm_password" type="password" required 
-                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm" 
-                        placeholder="Confirmer le nouveau mot de passe">
+            </div>
+            <div class="mb-3">
+                <label for="new_password_reset" class="form-label">Nouveau mot de passe</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                    <input id="new_password_reset" name="new_password" type="password" class="form-control" placeholder="Nouveau mot de passe" required>
+                </div>
+            </div>
+            <div class="mb-4">
+                <label for="confirm_password_reset" class="form-label">Confirmer le mot de passe</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-check"></i></span>
+                    <input id="confirm_password_reset" name="confirm_password" type="password" class="form-control" placeholder="Confirmer le nouveau mot de passe" required>
                 </div>
             </div>
 
-            <div>
-                <button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                    <span class="absolute left-0 inset-y-0 flex items-center pl-3">
-                        <i class="fas fa-check"></i>
-                    </span>
-                    Valider le nouveau mot de passe
+            <div class="d-grid gap-2 mb-3">
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-check me-2"></i>Valider le nouveau mot de passe
                 </button>
             </div>
             
             <div class="text-center">
-                <button type="button" onclick="showLoginForm()" class="text-sm text-blue-600 hover:text-blue-500">
+                <button type="button" onclick="showLoginForm()" class="btn btn-link p-0 text-decoration-none">
                     Retour à la connexion
                 </button>
             </div>
@@ -241,42 +282,44 @@ if(isset($_GET['error'])) {
 
         <!-- Lien vers la page d'accueil -->
         <div class="text-center mt-4">
-            <a href="index.php" class="text-sm text-gray-600 hover:text-gray-900">
-                <i class="fas fa-arrow-left mr-1"></i>
+            <a href="index.php" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>
                 Retour à la page d'accueil
             </a>
         </div>
     </div>
 
+    <!-- Bootstrap JS et script personnalisé -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     function showResetForm() {
         hideAllForms();
-        document.getElementById('resetForm').classList.remove('hidden');
+        document.getElementById('resetForm').classList.remove('d-none');
     }
 
     function showLoginForm() {
         hideAllForms();
-        document.getElementById('loginForm').classList.remove('hidden');
+        document.getElementById('loginForm').classList.remove('d-none');
     }
 
     function showForgotForm() {
         hideAllForms();
-        document.getElementById('forgotForm').classList.remove('hidden');
+        document.getElementById('forgotForm').classList.remove('d-none');
     }
 
     function showResetCodeForm() {
         hideAllForms();
-        document.getElementById('resetCodeForm').classList.remove('hidden');
+        document.getElementById('resetCodeForm').classList.remove('d-none');
     }
 
     function hideAllForms() {
-        document.getElementById('loginForm').classList.add('hidden');
-        document.getElementById('resetForm').classList.add('hidden');
-        document.getElementById('forgotForm').classList.add('hidden');
-        document.getElementById('resetCodeForm').classList.add('hidden');
+        document.getElementById('loginForm').classList.add('d-none');
+        document.getElementById('resetForm').classList.add('d-none');
+        document.getElementById('forgotForm').classList.add('d-none');
+        document.getElementById('resetCodeForm').classList.add('d-none');
     }
 
-    // Validation des formulaires
+    // Validation des formulaires avec Bootstrap
     document.getElementById('resetForm').onsubmit = validatePasswordForm;
     document.getElementById('resetCodeForm').onsubmit = validatePasswordForm;
 
@@ -287,17 +330,35 @@ if(isset($_GET['error'])) {
 
         if (newPassword !== confirmPassword) {
             e.preventDefault();
-            alert('Les mots de passe ne correspondent pas !');
+            showValidationError(form, 'Les mots de passe ne correspondent pas !');
             return false;
         }
 
         if (newPassword.length < 8) {
             e.preventDefault();
-            alert('Le mot de passe doit contenir au moins 8 caractères !');
+            showValidationError(form, 'Le mot de passe doit contenir au moins 8 caractères !');
             return false;
         }
 
         return true;
+    }
+    
+    function showValidationError(form, message) {
+        // Créer une alerte Bootstrap
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-danger mt-3';
+        alertDiv.role = 'alert';
+        alertDiv.textContent = message;
+        
+        // Supprimer les alertes précédentes
+        const existingAlerts = form.querySelectorAll('.alert');
+        existingAlerts.forEach(alert => alert.remove());
+        
+        // Ajouter la nouvelle alerte au début du formulaire
+        form.prepend(alertDiv);
+        
+        // Faire défiler jusqu'à l'alerte
+        alertDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     </script>
 </body>

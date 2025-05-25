@@ -9,13 +9,11 @@ if (!isset($_SESSION['login_id'])) {
 }
 
 $teacher_id = $_SESSION['login_id'];
-$course_id = $_GET['course_id'] ?? '';
+// Accept both 'id' and 'course_id' parameters for better compatibility
+$course_id = $_GET['id'] ?? $_GET['course_id'] ?? '';
 
-// Debug: Afficher les informations de débogage
-echo '<div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-4">
-    <p>ID du professeur : ' . htmlspecialchars($teacher_id) . '</p>
-    <p>ID du cours demandé : ' . htmlspecialchars($course_id) . '</p>
-</div>';
+// Définir la variable check pour le template layout.php
+$check = $teacher_id;
 
 // Vérifier que le professeur a accès à ce cours
 $course = db_fetch_row(
@@ -28,20 +26,15 @@ $course = db_fetch_row(
     'ss'
 );
 
-// Debug: Afficher les détails du cours
-if ($course) {
-    echo '<div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-4">
-        <p>Cours trouvé :</p>
-        <pre>' . print_r($course, true) . '</pre>
-    </div>';
-} else {
-    echo '<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
-        <p>Cours non trouvé dans la base de données.</p>
-    </div>';
-}
-
 if (!$course) {
-    die("Accès non autorisé à ce cours.");
+    $content = '<div class="alert alert-danger" role="alert">
+        <h4 class="alert-heading">Accès non autorisé</h4>
+        <p>Vous n\'avez pas accès à ce cours ou le cours n\'existe pas.</p>
+        <hr>
+        <p class="mb-0">Veuillez contacter l\'administrateur si vous pensez qu\'il s\'agit d\'une erreur.</p>
+    </div>';
+    include('templates/layout.php');
+    exit();
 }
 
 // Récupérer l'admin associé au professeur
@@ -69,16 +62,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_grades'])) {
 
         foreach ($_POST['grades'] as $student_id => $grades) {
             if (!empty($grades['grade'])) {
-                // Vérifier si une note existe déjà
+                // Vérifier si une note existe déjà en incluant teacher_id et class_id pour éviter les duplications
                 $existing_grade = db_fetch_row(
                     "SELECT id FROM student_teacher_course 
                      WHERE student_id = ? 
+                     AND teacher_id = ? 
                      AND course_id = ? 
+                     AND class_id = ? 
                      AND grade_type = ? 
                      AND grade_number = ? 
                      AND semester = ?",
-                    [$student_id, $course_id, $grade_type, $grade_number, $semester],
-                    'sssss'
+                    [$student_id, $teacher_id, $course_id, $class_id, $grade_type, $grade_number, $semester],
+                    'sssssss'
                 );
 
                 if ($existing_grade) {
@@ -128,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_grades'])) {
 $students = db_fetch_all(
     "SELECT s.*, 
             (SELECT grade FROM student_teacher_course 
-             WHERE student_id = s.id 
+             WHERE student_id = s.id COLLATE utf8mb4_general_ci 
              AND course_id = ? 
              AND grade_type = ? 
              AND grade_number = ? 
@@ -147,88 +142,96 @@ function safe_html($value) {
 }
 
 $content = '
-<div class="container mx-auto px-4 py-8">
-    <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900 mb-2">Gestion des Notes</h1>
-        <p class="text-gray-600">Cours : ' . safe_html($course['name']) . ' - Classe : ' . safe_html($course['class_name']) . '</p>
-        <p class="text-sm text-gray-500">Coefficient : ' . htmlspecialchars($course['coefficient']) . ' (défini par l\'administrateur)</p>
+<div class="container-fluid">
+    <div class="mb-4">
+        <h1 class="h3 mb-2">Gestion des Notes</h1>
+        <p class="text-muted">Cours : ' . safe_html($course['name']) . ' - Classe : ' . safe_html($course['class_name']) . '</p>
+        <p class="small text-muted">Coefficient : ' . htmlspecialchars($course['coefficient']) . ' (défini par l\'administrateur)</p>
     </div>';
 
 // Messages de succès/erreur
 if (isset($success_message)) {
     $content .= '
-    <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6">
+    <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
         ' . safe_html($success_message) . '
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>';
 }
 if (isset($error_message)) {
     $content .= '
-    <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6">
+    <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
         ' . safe_html($error_message) . '
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>';
 }
 
 // Formulaire de saisie des notes
 $content .= '
-    <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
-        <form method="GET" class="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <input type="hidden" name="course_id" value="' . safe_html($course_id) . '">
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Type d\'évaluation</label>
-                <select name="grade_type" onchange="this.form.submit()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="devoir" ' . (($_GET['grade_type'] ?? '') === 'devoir' ? 'selected' : '') . '>Devoir</option>
-                    <option value="examen" ' . (($_GET['grade_type'] ?? '') === 'examen' ? 'selected' : '') . '>Examen</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Numéro</label>
-                <select name="grade_number" onchange="this.form.submit()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="1" ' . (($_GET['grade_number'] ?? '') === '1' ? 'selected' : '') . '>1</option>
-                    <option value="2" ' . (($_GET['grade_number'] ?? '') === '2' ? 'selected' : '') . '>2</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Semestre</label>
-                <select name="semester" onchange="this.form.submit()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="1" ' . (($_GET['semester'] ?? '') === '1' ? 'selected' : '') . '>Semestre 1</option>
-                    <option value="2" ' . (($_GET['semester'] ?? '') === '2' ? 'selected' : '') . '>Semestre 2</option>
-                    <option value="3" ' . (($_GET['semester'] ?? '') === '3' ? 'selected' : '') . '>Semestre 3</option>
-                </select>
-            </div>
-        </form>
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="card-title mb-0">Saisie des notes</h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" class="mb-4">
+                <input type="hidden" name="id" value="' . safe_html($course_id) . '">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="grade_type" class="form-label">Type d\'évaluation</label>
+                        <select id="grade_type" name="grade_type" onchange="this.form.submit()" class="form-select">
+                            <option value="devoir" ' . (($_GET['grade_type'] ?? '') === 'devoir' ? 'selected' : '') . '>Devoir</option>
+                            <option value="examen" ' . (($_GET['grade_type'] ?? '') === 'examen' ? 'selected' : '') . '>Examen</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="grade_number" class="form-label">Numéro</label>
+                        <select id="grade_number" name="grade_number" onchange="this.form.submit()" class="form-select">
+                            <option value="1" ' . (($_GET['grade_number'] ?? '') === '1' ? 'selected' : '') . '>1</option>
+                            <option value="2" ' . (($_GET['grade_number'] ?? '') === '2' ? 'selected' : '') . '>2</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="semester" class="form-label">Semestre</label>
+                        <select id="semester" name="semester" onchange="this.form.submit()" class="form-select">
+                            <option value="1" ' . (($_GET['semester'] ?? '') === '1' ? 'selected' : '') . '>Semestre 1</option>
+                            <option value="2" ' . (($_GET['semester'] ?? '') === '2' ? 'selected' : '') . '>Semestre 2</option>
+                            <option value="3" ' . (($_GET['semester'] ?? '') === '3' ? 'selected' : '') . '>Semestre 3</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
 
-        <form method="POST" class="space-y-6">
+        <form method="POST">
             <input type="hidden" name="grade_type" value="' . safe_html($_GET['grade_type'] ?? 'devoir') . '">
             <input type="hidden" name="grade_number" value="' . safe_html($_GET['grade_number'] ?? '1') . '">
             <input type="hidden" name="semester" value="' . safe_html($_GET['semester'] ?? '1') . '">
 
-            <div class="mt-8">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
+            <div class="table-responsive mt-4">
+                <table class="table table-striped table-hover">
+                    <thead>
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Note</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Appréciation</th>
+                            <th scope="col">ID</th>
+                            <th scope="col">Nom</th>
+                            <th scope="col">Note</th>
+                            <th scope="col">Appréciation</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">';
+                    <tbody>';
 
 foreach ($students as $student) {
     $content .= '
         <tr>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . safe_html($student['id']) . '</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . safe_html($student['name']) . '</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
+            <td>' . safe_html($student['id']) . '</td>
+            <td>' . safe_html($student['name']) . '</td>
+            <td>
                 <input type="number" name="grades[' . safe_html($student['id']) . '][grade]" 
                        value="' . safe_html($student['current_grade']) . '"
                        min="0" max="20" step="0.5"
-                       class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-20 sm:text-sm border-gray-300 rounded-md">
+                       class="form-control form-control-sm" style="width: 80px;">
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
+            <td>
                 <textarea name="grades[' . safe_html($student['id']) . '][comment]" 
                           rows="2"
-                          class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                          class="form-control form-control-sm"
                           placeholder="Appréciation..."></textarea>
             </td>
         </tr>';
@@ -239,64 +242,66 @@ $content .= '
                 </table>
             </div>
 
-            <div class="flex justify-end mt-6">
-                <button type="submit" name="submit_grades" 
-                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                    Enregistrer les notes
+            <div class="d-flex justify-content-end mt-4">
+                <button type="submit" name="submit_grades" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Enregistrer les notes
                 </button>
             </div>
         </form>
+        </div>
     </div>
 
-    <div class="bg-white rounded-lg shadow-lg p-6">
-        <h2 class="text-xl font-semibold text-gray-900 mb-4">Historique des notes</h2>
-        
-        <div class="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Type d\'évaluation</label>
-                <select id="filter_type" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="">Tous</option>
-                    <option value="devoir">Devoir</option>
-                    <option value="examen">Examen</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Numéro</label>
-                <select id="filter_number" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="">Tous</option>
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Semestre</label>
-                <select id="filter_semester" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="">Tous</option>
-                    <option value="1">Semestre 1</option>
-                    <option value="2">Semestre 2</option>
-                    <option value="3">Semestre 3</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Date</label>
-                <input type="date" id="filter_date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-            </div>
+    <div class="card">
+        <div class="card-header bg-light">
+            <h5 class="card-title mb-0">Historique des notes</h5>
         </div>
+        <div class="card-body">
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <label for="filter_type" class="form-label">Type d\'évaluation</label>
+                    <select id="filter_type" class="form-select">
+                        <option value="">Tous</option>
+                        <option value="devoir">Devoir</option>
+                        <option value="examen">Examen</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filter_number" class="form-label">Numéro</label>
+                    <select id="filter_number" class="form-select">
+                        <option value="">Tous</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filter_semester" class="form-label">Semestre</label>
+                    <select id="filter_semester" class="form-select">
+                        <option value="">Tous</option>
+                        <option value="1">Semestre 1</option>
+                        <option value="2">Semestre 2</option>
+                        <option value="3">Semestre 3</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filter_date" class="form-label">Date</label>
+                    <input type="date" id="filter_date" class="form-control">
+                </div>
+            </div>
 
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200" id="grades-table">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Élève</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Numéro</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Note</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Semestre</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Professeur</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">';
+            <div class="table-responsive">
+                <table class="table table-striped table-hover" id="grades-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Élève</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Numéro</th>
+                            <th scope="col">Note</th>
+                            <th scope="col">Semestre</th>
+                            <th scope="col">Date</th>
+                            <th scope="col">Professeur</th>
+                        </tr>
+                    </thead>
+                    <tbody>';
 
 // Récupérer l'historique des notes avec plus de détails
 $grade_history = db_fetch_all(
@@ -311,10 +316,10 @@ $grade_history = db_fetch_all(
             t.name as teacher_name,
             DATE_FORMAT(MAX(stc.created_at), '%d/%m/%Y %H:%i') as formatted_date
      FROM student_teacher_course stc 
-     JOIN students s ON stc.student_id = s.id 
-     JOIN course c ON stc.course_id = c.id
-     JOIN class cl ON stc.class_id = cl.id
-     JOIN teachers t ON stc.teacher_id = t.id
+     JOIN students s ON stc.student_id = s.id COLLATE utf8mb4_general_ci
+     JOIN course c ON stc.course_id = c.id COLLATE utf8mb4_general_ci
+     JOIN class cl ON stc.class_id = cl.id COLLATE utf8mb4_general_ci
+     JOIN teachers t ON stc.teacher_id = t.id COLLATE utf8mb4_general_ci
      WHERE stc.course_id = ? 
      AND stc.teacher_id = ?
      AND stc.class_id = ?
@@ -332,14 +337,13 @@ foreach ($grade_history as $grade) {
             data-number="' . safe_html($grade['grade_number']) . '"
             data-semester="' . safe_html($grade['semester']) . '"
             data-date="' . date('Y-m-d', strtotime($grade['formatted_date'] ?? 'now')) . '">
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . safe_html($grade['student_name']) . '</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . 
-                ($grade['grade_type'] === 'devoir' ? 'Devoir' : 'Examen') . '</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . safe_html($grade['grade_number']) . '</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . safe_html($grade['grade']) . '/20</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Semestre ' . safe_html($grade['semester']) . '</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . safe_html($grade['formatted_date']) . '</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">' . safe_html($grade['teacher_name']) . '</td>
+            <td>' . safe_html($grade['student_name']) . '</td>
+            <td>' . ($grade['grade_type'] === 'devoir' ? 'Devoir' : 'Examen') . '</td>
+            <td>' . safe_html($grade['grade_number']) . '</td>
+            <td><span class="badge bg-primary">' . safe_html($grade['grade']) . '/20</span></td>
+            <td>Semestre ' . safe_html($grade['semester']) . '</td>
+            <td>' . safe_html($grade['formatted_date']) . '</td>
+            <td>' . safe_html($grade['teacher_name']) . '</td>
         </tr>';
 }
 
@@ -384,6 +388,7 @@ $content .= '
         filterDate.addEventListener("change", applyFilters);
     });
     </script>
+</div>
 </div>';
 
 // Utiliser le template enseignant

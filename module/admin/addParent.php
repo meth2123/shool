@@ -12,21 +12,31 @@ $conn = getDbConnection();
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 // Function to generate next parent ID
-function generateNextParentId($conn) {
+function generateNextParentId($conn, $mothername) {
     try {
-        $sql = "SELECT id FROM parents WHERE id LIKE 'PA%' ORDER BY id DESC LIMIT 1";
-        error_log("Executing SQL: " . $sql);
-        $result = $conn->query($sql);
+        // Extraire les 3 premières lettres du nom de la mère et les mettre en majuscules
+        $mother_prefix = strtoupper(substr(trim($mothername), 0, 3));
+        
+        $sql = "SELECT id FROM parents WHERE id LIKE ? ORDER BY id DESC LIMIT 1";
+        $pattern = $mother_prefix . '-PA%';
+        error_log("Executing SQL: " . $sql . " with pattern: " . $pattern);
+        
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("s", $pattern);
+        $stmt->execute();
+        $result = $stmt->get_result();
         
         if ($result && $result->num_rows > 0) {
             $row = $result->fetch_assoc();
             $lastId = $row['id'];
-            $number = intval(substr($lastId, 2)) + 1;
+            // Extraire le numéro après le dernier tiret
+            $number = intval(substr($lastId, strrpos($lastId, '-') + 3)) + 1;
         } else {
             $number = 1;
         }
         
-        return 'PA' . str_pad($number, 4, '0', STR_PAD_LEFT);
+        // Format: DIO-PA001, DIO-PA002, etc. (pour DIOP par exemple)
+        return $mother_prefix . '-PA' . str_pad($number, 3, '0', STR_PAD_LEFT);
     } catch (Exception $e) {
         error_log("Error in generateNextParentId: " . $e->getMessage());
         throw $e;
@@ -52,10 +62,7 @@ $error_message = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
     try {
-        // Generate new parent ID
-        $id = generateNextParentId($conn);
-        
-        // Validate and sanitize input
+        // Validate and sanitize input first
         $password = trim($_POST['password']);
         $fathername = trim($_POST['fathername']);
         $mothername = trim($_POST['mothername']);
@@ -63,9 +70,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         $motherphone = trim($_POST['motherphone']);
         $address = trim($_POST['address']);
 
+        // Basic validation
+        if (empty($password) || empty($fathername) || empty($fatherphone) || empty($mothername)) {
+            throw new Exception("Veuillez remplir tous les champs obligatoires, y compris le nom de la mère");
+        }
+
+        // Generate new parent ID using mother's name
+        $id = generateNextParentId($conn, $mothername);
+        
         // Debug output
         error_log("=== Debug addParent.php ===");
-        error_log("Admin ID: " . $admin_id);
+        error_log("Mother's name: " . $mothername);
         error_log("Generated Parent ID: " . $id);
         error_log("Form Data: " . print_r([
             'id' => $id,
@@ -77,11 +92,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
             'address' => $address,
             'created_by' => $admin_id
         ], true));
-
-        // Basic validation
-        if (empty($password) || empty($fathername) || empty($fatherphone)) {
-            throw new Exception("Veuillez remplir tous les champs obligatoires");
-        }
 
         // Start transaction
         $conn->begin_transaction();

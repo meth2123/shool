@@ -71,104 +71,118 @@ if(isset($_POST['submit'])){
         exit;
 
     } catch (Exception $e) {
-        $status_message = '<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">' . 
-                         htmlspecialchars($e->getMessage()) . '</div>';
+        $status_message = '<div class="alert alert-danger">' . htmlspecialchars($e->getMessage()) . '</div>';
     }
 }
 
-$content = '
-<div class="container mx-auto px-4 py-8">
-    <div class="max-w-3xl mx-auto">
-        ' . $status_message . '
-        <div class="bg-white rounded-lg shadow-lg p-6">
-            <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">Création d\'une Nouvelle Classe</h2>
-            
-            <form action="addClass.php" method="post" onsubmit="return validateClassForm();" class="space-y-6">
-                <input type="hidden" name="created_by" value="' . htmlspecialchars($check) . '">
-                
-                <!-- Nom et Section -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label for="className" class="block text-sm font-medium text-gray-700">Nom de la Classe*</label>
-                        <input id="className" type="text" name="className" placeholder="Ex: 6ème" required
-                               value="' . htmlspecialchars($_POST['className'] ?? '') . '"
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <p id="classNameError" class="mt-1 text-sm text-red-600 hidden"></p>
-                    </div>
-                    <div>
-                        <label for="section" class="block text-sm font-medium text-gray-700">Section*</label>
-                        <input id="section" type="text" name="section" placeholder="Ex: A" required
-                               value="' . htmlspecialchars($_POST['section'] ?? '') . '"
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <p id="sectionError" class="mt-1 text-sm text-red-600 hidden"></p>
-                    </div>
-                </div>
+// Construction du contenu HTML par parties pour éviter les problèmes d'encodage
+$content = '<div class="container py-4">';
+$content .= '<div class="row justify-content-center">';
+$content .= '<div class="col-md-8">';
 
-                <!-- Salle -->
-                <div>
-                    <label for="room" class="block text-sm font-medium text-gray-700">Salle*</label>
-                    <input id="room" type="text" name="room" placeholder="Ex: 101" required
-                           value="' . htmlspecialchars($_POST['room'] ?? '') . '"
-                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <p id="roomError" class="mt-1 text-sm text-red-600 hidden"></p>
-                </div>
+// Message de statut
+$content .= str_replace(
+    ["bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4"],
+    ["alert alert-danger"],
+    $status_message
+);
 
-                <!-- Submit Button -->
-                <div class="flex justify-end">
-                    <button type="submit" name="submit" value="1"
-                            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                        Créer la classe
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+// Début de la carte
+$content .= '<div class="card shadow-sm">';
+$content .= '<div class="card-header bg-white">';
+$content .= '<h4 class="card-title text-center mb-0">Creation d\'une Nouvelle Classe</h4>';
+$content .= '</div>';
 
-<script>
+$content .= '<div class="card-body">';
+$content .= '<form action="addClass.php" method="post" onsubmit="return validateClassForm();">';
+$content .= '<input type="hidden" name="created_by" value="' . htmlspecialchars($check) . '">';
+
+// Nom et Section
+$content .= '<div class="row mb-3">';
+$content .= '<div class="col-md-6 mb-3 mb-md-0">';
+$content .= '<label for="className" class="form-label">Nom de la Classe*</label>';
+$content .= '<input id="className" type="text" name="className" placeholder="Ex: 6ème" required value="' . htmlspecialchars($_POST['className'] ?? '') . '" class="form-control">';
+$content .= '<div id="classNameError" class="invalid-feedback d-none"></div>';
+$content .= '</div>';
+$content .= '<div class="col-md-6">';
+$content .= '<label for="section" class="form-label">Section*</label>';
+$content .= '<input id="section" type="text" name="section" placeholder="Ex: A" required value="' . htmlspecialchars($_POST['section'] ?? '') . '" class="form-control">';
+$content .= '<div id="sectionError" class="invalid-feedback d-none"></div>';
+$content .= '</div>';
+$content .= '</div>';
+
+// Salle
+$content .= '<div class="mb-4">';
+$content .= '<label for="room" class="form-label">Salle*</label>';
+$content .= '<input id="room" type="text" name="room" placeholder="Ex: 101" required value="' . htmlspecialchars($_POST['room'] ?? '') . '" class="form-control">';
+$content .= '<div id="roomError" class="invalid-feedback d-none"></div>';
+$content .= '</div>';
+
+// Submit Button
+$content .= '<div class="d-flex justify-content-between align-items-center">';
+$content .= '<a href="manageClass.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Retour</a>';
+$content .= '<button type="submit" name="submit" value="1" class="btn btn-primary"><i class="fas fa-plus-circle me-2"></i>Créer la classe</button>';
+$content .= '</div>';
+$content .= '</form>';
+$content .= '</div>';
+$content .= '</div>';
+$content .= '</div>';
+$content .= '</div>';
+$content .= '</div>';
+
+// Ajout du script JavaScript
+$content .= '<script>
 function validateClassForm() {
     let isValid = true;
     const errors = {};
+    
+    // Réinitialiser tous les messages d\'erreur
+    document.querySelectorAll(\'.invalid-feedback\').forEach(el => {
+        el.classList.add(\'d-none\');
+        el.textContent = \'\';
+    });
+    
+    document.querySelectorAll(\'.form-control\').forEach(el => {
+        el.classList.remove(\'is-invalid\');
+    });
 
     // Validate Class Name
     const className = document.getElementById("className").value.trim();
     if (!className || className.length < 2) {
-        errors.className = "Le nom de la classe doit contenir au moins 2 caractères";
+        showError("className", "Le nom de la classe doit contenir au moins 2 caractères");
         isValid = false;
     }
 
     // Validate Section
     const section = document.getElementById("section").value.trim();
     if (!section) {
-        errors.section = "La section est requise";
+        showError("section", "La section est requise");
         isValid = false;
     }
 
     // Validate Room
     const room = document.getElementById("room").value.trim();
     if (!room) {
-        errors.room = "La salle est requise";
+        showError("room", "La salle est requise");
         isValid = false;
     }
-
-    // Clear previous errors
-    document.querySelectorAll(".text-red-600").forEach(el => {
-        el.textContent = "";
-        el.classList.add("hidden");
-    });
-
-    // Display new errors if any
-    Object.keys(errors).forEach(field => {
-        const errorElement = document.getElementById(field + "Error");
-        if (errorElement) {
-            errorElement.textContent = errors[field];
-            errorElement.classList.remove("hidden");
-        }
-    });
-
+    
     return isValid;
 }
+
+// Fonction pour afficher les erreurs
+function showError(fieldId, message) {
+    const field = document.getElementById(fieldId);
+    const errorElement = document.getElementById(fieldId + "Error");
+    
+    if (field && errorElement) {
+        field.classList.add(\'is-invalid\');
+        errorElement.textContent = message;
+        errorElement.classList.remove(\'d-none\');
+    }
+}
 </script>';
+
 
 include('templates/layout.php');
 ?> 

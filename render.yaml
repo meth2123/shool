@@ -1,14 +1,12 @@
 services:
-  # Service Web PHP
+  # Service Web PHP avec Docker
   - type: web
     name: schoolmanager
-    env: php
+    env: docker
     region: oregon # Région la plus proche du Sénégal
     plan: starter # Plan de base, peut être mis à niveau plus tard
-    buildCommand: |
-      composer install --no-dev --optimize-autoloader
-      php artisan key:generate
-    startCommand: vendor/bin/heroku-php-apache2
+    dockerfilePath: Dockerfile
+    dockerContext: ./
     envVars:
       - key: APP_URL
         value: https://schoolmanager.sn

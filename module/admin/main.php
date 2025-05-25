@@ -1,41 +1,48 @@
 <?php
-session_start();
+// Vérifier si une session est déjà active avant de la démarrer
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
 
-// Correction des chemins d'inclusion avec des chemins absolus
-$root_path = $_SERVER['DOCUMENT_ROOT'] . '/gestion/';
-require_once($root_path . 'service/mysqlcon.php');
-require_once(__DIR__ . '/includes/admin_utils.php');
-
-// Ensure created_by column exists
-addCreatedByColumnIfNotExists($link, 'students');
+// Détection automatique de l'environnement (WAMP ou Docker)
+if (file_exists($_SERVER['DOCUMENT_ROOT'] . '/gestion/service/mysqlcon.php')) {
+    // Environnement WAMP
+    $root_path = $_SERVER['DOCUMENT_ROOT'] . '/gestion/';
+} else {
+    // Environnement Docker ou Render
+    $root_path = $_SERVER['DOCUMENT_ROOT'] . '/';
+}
 
 // Vérifier si l'utilisateur est connecté
 if (!isset($_SESSION['login_id'])) {
-    header("Location: ../../index.php");
-    exit();
+    header('Location: ../../login.php');
+    exit;
 }
 
-$check = $_SESSION['login_id'];
-
-// Using prepared statement
-$sql = "SELECT name FROM admin WHERE id = ?";
-$stmt = $link->prepare($sql);
-if (!$stmt) {
-    error_log("Erreur de préparation de la requête : " . $link->error);
-    header("Location: ../../index.php");
-    exit();
+// Vérifier si l'utilisateur est un administrateur
+if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'admin') {
+    header('Location: ../../login.php');
+    exit;
 }
 
-$stmt->bind_param("s", $check);
+// Récupérer l'ID de l'utilisateur connecté
+$admin_id = $_SESSION['login_id'];
+
+// Inclure les fichiers nécessaires
+require_once($root_path . 'service/mysqlcon.php');
+
+// Récupérer les informations de l'administrateur
+$stmt = $link->prepare("SELECT name FROM admin WHERE id = ?");
+$stmt->bind_param("s", $admin_id);
 $stmt->execute();
 $result = $stmt->get_result();
 $row = $result->fetch_assoc();
+$login_session = $row['name'] ?? 'Administrateur';
 
-if (!$row) {
-    error_log("Aucun admin trouvé avec l'ID : " . $check);
-    header("Location: ../../index.php");
-    exit();
+// Vérifier si l'utilisateur a cliqué sur le bouton de déconnexion
+if (isset($_GET['logout'])) {
+    session_destroy();
+    header('Location: ../../login.php');
+    exit;
 }
-
-$login_session = $loged_user_name = $row['name'];
 ?>
